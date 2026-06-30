@@ -402,6 +402,13 @@ async function handleSubscriptionUpdated(subscriptionData: any, stripeEventId: s
     ? new Date(subscriptionData.trial_end * 1000)
     : null;
   const cancelScheduled = subscriptionData.cancel_at_period_end === true;
+  // Absolute scheduled-cancel timestamp — set when a comp is scheduled to end
+  // on a fixed date (distinct from cancel_at_period_end). This is the signal the
+  // "your free Pro is ending" banner + reminder email key off. Null when there's
+  // no hard cancel scheduled.
+  const cancelAt = subscriptionData.cancel_at
+    ? new Date(subscriptionData.cancel_at * 1000)
+    : null;
 
   // Pre-read for the revenue events below: subscription.updated fires on
   // every invoice/period rollover, so we only emit when something the
@@ -426,6 +433,7 @@ async function handleSubscriptionUpdated(subscriptionData: any, stripeEventId: s
       trialEndsAt,
       stripeSubscriptionStatus: rawStatus ?? null,
       cancelAtPeriodEnd: cancelScheduled,
+      subscriptionCancelAt: cancelAt,
     },
     { merge: true }
   );
@@ -487,6 +495,10 @@ async function handleSubscriptionDeleted(subscriptionData: any, stripeEventId: s
   // Pre-read for tier + tenure on the churn event below.
   const prevDoc = await db.collection('agents').doc(userId).get();
   const prevData = prevDoc.data() ?? {};
+  // Only drop the tier to Free when the subscription that just ended is the
+  // user's current one — don't free someone who has already resubscribed under
+  // a different subscription id.
+  const isCurrentSub = !prevData.subscriptionId || prevData.subscriptionId === subscriptionData.id;
   await db.collection('agents').doc(userId).set(
     {
       subscriptionStatus: 'canceled',
@@ -494,6 +506,15 @@ async function handleSubscriptionDeleted(subscriptionData: any, stripeEventId: s
       stripeCustomerId: subscriptionData.customer,
       subscriptionId: subscriptionData.id,
       stripeSubscriptionStatus: 'canceled',
+      // Any scheduled hard-cancel has now fired — clear the date so the
+      // "ending soon" banner/email stop targeting this account.
+      subscriptionCancelAt: null,
+      // Drop to Free now that the subscription has actually ended (the gates
+      // read `membershipTier`, so without this a canceled account would keep
+      // Pro tools AND keep firing the whole-book outreach crons). Guarded to
+      // the current sub so we don't free someone who already resubscribed.
+      // Free = data-preserved, engine-paused per the May 30 Growth Lock.
+      ...(isCurrentSub ? { membershipTier: 'free', freeSince: new Date() } : {}),
     },
     { merge: true }
   );

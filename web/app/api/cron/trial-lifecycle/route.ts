@@ -25,6 +25,13 @@ import { getAdminFirestore } from '../../../../lib/firebase-admin';
  *       paid conversion only ever happens through the explicit picker /
  *       Stripe Checkout.
  *
+ *   (C) COMP-ENDING — a second pass over Pro accounts on a 100%-off
+ *       window with a scheduled cancel (`subscriptionCancelAt`): email the
+ *       3-choice heads-up once in the final 10 days, and flip the tier to
+ *       'growth' after the date if they chose the Growth switch. These ARE
+ *       subscriptionStatus=='active', so the trial guard below never matches
+ *       them — the pass keys off subscriptionCancelAt instead.
+ *
  * Hard guards so a paying agent is NEVER touched:
  *   - we only query `membershipTier == 'trial'` (a paid agent is
  *     'pro' / 'growth' / 'founding' / 'agency', never 'trial'); and
@@ -39,6 +46,7 @@ import { getAdminFirestore } from '../../../../lib/firebase-admin';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const REMINDER_WINDOW_MS = 2 * DAY_MS;
+const COMP_REMINDER_WINDOW_MS = 10 * DAY_MS;
 
 /** Normalize a Firestore Timestamp | Date | {seconds} | number to millis. */
 function tsToMillis(v: unknown): number | null {
@@ -62,6 +70,32 @@ function reminderEmailHtml(firstName: string, daysLeft: number, dashboardUrl: st
         <a href="${dashboardUrl}" style="display:inline-block;padding:12px 20px;background:#005851;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Choose your plan</a>
       </p>
       <p style="font-size: 16px;">Either way, you keep your account and everything in it. Questions? Just reply to this email.</p>
+      <p style="font-size: 16px;">— Daniel</p>
+    </div>
+  `;
+}
+
+function compEndingEmailHtml(
+  firstName: string,
+  daysLeft: number,
+  endDate: string,
+  dashboardUrl: string,
+): string {
+  const dayWord = daysLeft === 1 ? 'day' : 'days';
+  return `
+    <div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto; color: #2D3748; line-height: 1.7;">
+      <p style="font-size: 16px;">Hey ${firstName},</p>
+      <p style="font-size: 16px;">Quick heads up — your 3 months of free Pro wrap up in ${daysLeft} ${dayWord}, on ${endDate}. The good part: nothing happens to your card on its own. You're only ever charged if you choose to keep going.</p>
+      <p style="font-size: 16px;">Whenever you're ready, you've got three options:</p>
+      <ul style="font-size: 16px; margin: 8px 0 16px 20px; padding: 0;">
+        <li><strong>Keep Pro</strong> — everything stays exactly as it is, $99/month starting ${endDate}.</li>
+        <li><strong>Switch to Growth</strong> — keep your whole book working post-sale for $49/month.</li>
+        <li><strong>Do nothing</strong> — you'll move to the free plan on ${endDate}. No charge, ever. Your book stays put; the automation just pauses.</li>
+      </ul>
+      <p style="margin: 20px 0;">
+        <a href="${dashboardUrl}" style="display:inline-block;padding:12px 20px;background:#005851;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Choose what's next</a>
+      </p>
+      <p style="font-size: 16px;">No rush — you keep full Pro right up to ${endDate}. Questions? Just reply to this email.</p>
       <p style="font-size: 16px;">— Daniel</p>
     </div>
   `;
@@ -163,6 +197,73 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // ── (C) Comp-ending pass ──────────────────────────────────────────
+    // Pro accounts on a 100%-off window with a scheduled cancel
+    // (subscriptionCancelAt). Two mutually-exclusive things per agent:
+    //   (A) within the 10-day window + not yet reminded → email the 3 choices
+    //       once and stamp compReminderSentAt.
+    //   (B) the cancel date has passed and they chose Growth → flip the tier
+    //       label to 'growth' (Stripe already bills Growth; the webhook never
+    //       rewrites the tier on a price-swapped renewal). "Keep Pro" stays
+    //       'pro'; "do nothing" is handled by the cancel → webhook → Free.
+    let compRemindersSent = 0;
+    let compTierFlips = 0;
+    const proSnap = await db.collection('agents').where('membershipTier', '==', 'pro').get();
+    for (const doc of proSnap.docs) {
+      const data = doc.data() || {};
+      const cancelAtMs = tsToMillis(data.subscriptionCancelAt);
+      if (cancelAtMs == null) continue; // not a scheduled-cancel comp
+
+      // (B) Cancel date passed → reconcile the tier for a Growth switch.
+      if (cancelAtMs <= now) {
+        if (data.pendingTierAtPeriodEnd === 'growth') {
+          try {
+            await doc.ref.set(
+              { membershipTier: 'growth', pendingTierAtPeriodEnd: FieldValue.delete() },
+              { merge: true },
+            );
+            compTierFlips += 1;
+            console.log('[trial-lifecycle] comp → growth', { agentId: doc.id });
+          } catch (err) {
+            console.error('[trial-lifecycle] comp tier-flip failed', {
+              agentId: doc.id,
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
+        }
+        continue;
+      }
+
+      // (A) Ending soon + not yet reminded → send the 3-choice email once.
+      const endingSoon = cancelAtMs - now <= COMP_REMINDER_WINDOW_MS;
+      const alreadyReminded = Boolean(data.compReminderSentAt);
+      if (endingSoon && !alreadyReminded) {
+        const email = typeof data.email === 'string' ? data.email : (typeof data.emailLower === 'string' ? data.emailLower : '');
+        if (!email) continue;
+        const firstName = typeof data.name === 'string' && data.name.trim().length > 0 ? data.name.trim().split(' ')[0] : 'there';
+        const daysLeft = Math.max(1, Math.ceil((cancelAtMs - now) / DAY_MS));
+        const endDate = new Date(cancelAtMs).toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+        try {
+          if (resend) {
+            await resend.emails.send({
+              from: 'Daniel Roberts — AgentForLife™ <support@agentforlife.app>',
+              to: email,
+              subject: `Your free Pro ends in ${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} — choose what's next`,
+              html: compEndingEmailHtml(firstName, daysLeft, endDate, `${appUrl}/dashboard`),
+            });
+            await doc.ref.set({ compReminderSentAt: FieldValue.serverTimestamp() }, { merge: true });
+            compRemindersSent += 1;
+            console.log('[trial-lifecycle] comp reminder sent', { agentId: doc.id, daysLeft });
+          }
+        } catch (err) {
+          console.error('[trial-lifecycle] comp reminder failed (will retry next run)', {
+            agentId: doc.id,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+    }
+
     const elapsedMs = Date.now() - startedAt;
     return NextResponse.json({
       success: true,
@@ -170,6 +271,8 @@ export async function GET(req: NextRequest) {
       remindersSent,
       expiredToFree,
       skippedPaid,
+      compRemindersSent,
+      compTierFlips,
       elapsedMs,
     });
   } catch (error) {

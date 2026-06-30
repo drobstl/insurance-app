@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 
 /** The brand toggle switch, shared across settings rows. */
 export function Switch({ on, onClick }: { on: boolean; onClick: () => void }) {
@@ -22,23 +22,41 @@ export function Switch({ on, onClick }: { on: boolean; onClick: () => void }) {
  * the hairline-divided list pattern; a lone row in its own panel works too
  * (last:border-b-0 drops the divider).
  */
-export function ToggleRow({ icon, title, description, on, onToggle }: {
+export function ToggleRow({ icon, title, description, on, onToggle, detail }: {
   icon: ReactNode;
   title: string;
   description: string;
   on: boolean;
   onToggle: () => void;
+  /** Optional progressive-disclosure content (e.g. "what your client gets"
+      + "when it happens") revealed by a "See what your client gets" link,
+      so the default row stays compact. */
+  detail?: ReactNode;
 }) {
+  const [open, setOpen] = useState(false);
   return (
-    <div className="flex items-center justify-between gap-5 px-5 py-4 border-b border-[#f1f1f1] last:border-b-0">
-      <div className="flex items-start gap-3.5 min-w-0">
-        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#eef6f4] text-[#0f6e56]">{icon}</span>
-        <div className="min-w-0">
-          <p className="text-[15px] font-semibold text-[#111827]">{title}</p>
-          <p className="text-[13px] text-[#6b7280] mt-0.5 leading-snug">{description}</p>
+    <div className="border-b border-[#f1f1f1] last:border-b-0">
+      <div className="flex items-center justify-between gap-5 px-5 py-4">
+        <div className="flex items-start gap-3.5 min-w-0">
+          <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#eef6f4] text-[#0f6e56]">{icon}</span>
+          <div className="min-w-0">
+            <p className="text-[15px] font-semibold text-[#111827]">{title}</p>
+            <p className="text-[13px] text-[#6b7280] mt-0.5 leading-snug">{description}</p>
+            {detail && (
+              <button
+                type="button"
+                onClick={() => setOpen((o) => !o)}
+                className="mt-1.5 inline-flex items-center gap-1 text-[12px] font-semibold text-[#0f6e56]"
+              >
+                {open ? 'Hide preview' : 'See what your client gets'}
+                <svg className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+              </button>
+            )}
+          </div>
         </div>
+        <Switch on={on} onClick={onToggle} />
       </div>
-      <Switch on={on} onClick={onToggle} />
+      {detail && open && <div className="px-5 pb-4 sm:pl-[68px]">{detail}</div>}
     </div>
   );
 }

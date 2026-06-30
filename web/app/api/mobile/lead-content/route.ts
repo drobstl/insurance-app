@@ -33,11 +33,13 @@ const PLATFORM_DEFAULTS = {
 };
 
 // Age-aware platform-default FAQ videos. Real, hosted clips (Bunny Stream)
-// that play automatically when the agent hasn't recorded their own FAQ. We
-// only serve an age-appropriate one — the "do I need this now?" clip is
-// written for younger leads, so it only goes to leads under YOUNG_FAQ_MAX_AGE.
-// (An over-40 "cost / approval" companion will slot in here later.)
-// videoId lives in the AFL Bunny library (672807); URLs are public CDN paths.
+// that play automatically when the agent hasn't recorded their own FAQ.
+//   - Under 40: the "do I need this now?" clip — explicitly written for
+//     younger leads, so only confirmed under-40s get it.
+//   - 40+ OR unknown age: the "cost & approval" clip — age-neutral (it never
+//     mentions age), so it's the safe default for older leads AND for the many
+//     leads with no date of birth on file.
+// videoIds live in the AFL Bunny library (672807); URLs are public CDN paths.
 const YOUNG_FAQ_MAX_AGE = 40;
 const YOUNG_FAQ_DEFAULT = {
   id: 'faq-default-young',
@@ -47,6 +49,15 @@ const YOUNG_FAQ_DEFAULT = {
   thumbnailUrl: 'https://vz-a54402da-888.b-cdn.net/7b3ebe94-fbd8-453e-ba92-6007fa8848dd/thumbnail.jpg',
   videoId: '7b3ebe94-fbd8-453e-ba92-6007fa8848dd',
   durationSec: 57,
+};
+const COST_FAQ_DEFAULT = {
+  id: 'faq-default-cost',
+  title: 'Won’t this cost too much — and would I even qualify?',
+  url: 'https://vz-a54402da-888.b-cdn.net/eed95098-f294-488d-a8c9-04d1412d0794/playlist.m3u8',
+  iframeUrl: 'https://iframe.mediadelivery.net/embed/672807/eed95098-f294-488d-a8c9-04d1412d0794',
+  thumbnailUrl: 'https://vz-a54402da-888.b-cdn.net/eed95098-f294-488d-a8c9-04d1412d0794/thumbnail.jpg',
+  videoId: 'eed95098-f294-488d-a8c9-04d1412d0794',
+  durationSec: 53,
 };
 
 // Whole years from a YYYY-MM-DD date of birth; undefined if missing/invalid.
@@ -133,14 +144,14 @@ export async function GET(req: NextRequest) {
     };
 
     // FAQ is age-aware. Unless the agent opted out (false) or uploaded their
-    // own, leads under YOUNG_FAQ_MAX_AGE get the real "do I need this now?"
-    // clip automatically; everyone else (older, or unknown age) gets nothing
-    // until the companion videos exist. No "Coming soon" placeholders.
+    // own, every lead gets a real default clip: confirmed under-40s get the
+    // age-specific "do I need this now?" video; everyone else (40+, or unknown
+    // age) gets the age-neutral "cost & approval" video. No placeholders.
     const resolveFaqs = (): Array<Record<string, unknown>> => {
       if (showFaqs === false) return [];
       if (agentOverrides.faqs && agentOverrides.faqs.length > 0) return agentOverrides.faqs;
       if (leadAge !== undefined && leadAge < YOUNG_FAQ_MAX_AGE) return [YOUNG_FAQ_DEFAULT];
-      return [];
+      return [COST_FAQ_DEFAULT];
     };
 
     return NextResponse.json({
