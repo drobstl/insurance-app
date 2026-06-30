@@ -447,8 +447,9 @@ function LeadsPageInner() {
     const unsub = onSnapshot(q, (snap) => {
       const map = new Map<string, { scheduledAt: Date; tz?: string }>();
       for (const d of snap.docs) {
-        const data = d.data() as { leadId?: string; scheduledAt?: Timestamp; scheduledAtTimeZone?: string; status?: string };
+        const data = d.data() as { leadId?: string; scheduledAt?: Timestamp; scheduledAtTimeZone?: string; status?: string; kind?: string };
         if (!data.leadId || !data.scheduledAt) continue;
+        if (data.kind === 'callback') continue; // callbacks aren't appointments
         if (data.status && data.status !== 'scheduled') continue;
         // First hit wins because query is sorted ascending — that's the
         // *next* appointment for the lead.

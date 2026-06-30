@@ -681,6 +681,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       snap.forEach((d) => {
         const data = d.data();
         if (data.status !== 'scheduled') return;
+        if (data.kind === 'callback') return; // callbacks aren't appointments
         const ts = data.scheduledAt;
         const ms = ts && typeof ts.toMillis === 'function' ? ts.toMillis() : null;
         if (ms !== null && ms >= start && ms < end) count += 1;

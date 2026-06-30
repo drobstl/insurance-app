@@ -944,7 +944,14 @@ export default function LeadDetailPanel({
       orderBy('scheduledAt', 'desc'),
     );
     const unsub = onSnapshot(q, (snap) => {
-      setAppointments(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<AppointmentEntry, 'id'>) })));
+      // Exclude callbacks — they share this collection (so the calendar shows
+      // them) but are not appointments; they never belong in the sit list,
+      // outcome chips, or the "Present" affordance.
+      setAppointments(
+        snap.docs
+          .filter((d) => (d.data() as { kind?: string }).kind !== 'callback')
+          .map((d) => ({ id: d.id, ...(d.data() as Omit<AppointmentEntry, 'id'>) })),
+      );
     }, (err) => {
       // First-time queries on a new compound (leadId + scheduledAt
       // sort) need an index; Firestore returns a console URL to
