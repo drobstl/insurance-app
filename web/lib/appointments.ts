@@ -35,6 +35,15 @@ export type AppointmentStatus =
 
 export interface AppointmentDoc {
   id: string;
+  /**
+   * What kind of entry this is. Absent ⇒ 'appointment' (every doc written
+   * before callbacks shipped). A 'callback' is a lead-requested call-back at a
+   * committed time: it shares this collection so the calendar renders it for
+   * free, but it is NEVER an appointment — it must be excluded from every
+   * booking/show metric (see isCallback / activity-stats). Callbacks carry no
+   * duration/meeting/Google fields and never reach the sit_* outcome flow.
+   */
+  kind?: 'appointment' | 'callback';
   leadId: string;
   leadName: string;
   leadPhone: string;
@@ -122,6 +131,16 @@ export const SIT_HAPPENED_STATUSES: AppointmentStatus[] = [
   'sit_no_sale',
   'sit_think_about_it',
 ];
+
+/**
+ * True for callback entries (lead-requested call-backs that live in the
+ * appointments collection but are not appointments). Every booking/show/
+ * activity metric must skip these; the calendar renders them, styled apart.
+ * Duck-typed so it works on AppointmentDoc and raw Firestore data alike.
+ */
+export function isCallback(appt: { kind?: string | null } | null | undefined): boolean {
+  return appt?.kind === 'callback';
+}
 
 export function isValidIsoTimestamp(s: string): boolean {
   if (!s) return false;

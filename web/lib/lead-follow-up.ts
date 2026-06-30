@@ -11,9 +11,10 @@
  * the firebase-admin and the client Timestamp.
  */
 
-/** A callback request is a promise to circle back — default the auto-set
- *  follow-up to 2 days out; the agent can adjust it on the lead. */
-export const CALLBACK_FOLLOWUP_MS = 2 * 24 * 60 * 60 * 1000;
+/** A callback request with no specific time given — default the auto-set
+ *  follow-up to the next day; the agent can adjust it on the lead. When the
+ *  lead commits to a time, that exact time is used instead (callbacks route). */
+export const CALLBACK_FOLLOWUP_MS = 1 * 24 * 60 * 60 * 1000;
 
 interface TimestampLike {
   toMillis?: () => number;
