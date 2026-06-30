@@ -7,6 +7,7 @@ import { Upload as TusUpload } from 'tus-js-client';
 import type { AgentProfile } from '../DashboardContext';
 import { canAccessLeads } from '../../../lib/tier-gating';
 import RecordVideoModal from './RecordVideoModal';
+import { LEAD_FAQ_DEFAULTS } from '../../../lib/lead-faq-defaults';
 import {
   MAX_LEAD_VIDEO_BYTES,
   detectSchedulingPlatform,
@@ -73,6 +74,7 @@ function LeadVideoList({
   shownToLeads,
   onShownChange,
   platformDefaultNote,
+  defaults,
 }: {
   kind: 'faq' | 'caseStudy';
   label: string;
@@ -87,6 +89,9 @@ function LeadVideoList({
   /** Shown when the section is on with no uploads — explains the platform
    *  default that leads see in that case (e.g. the age-aware FAQ video). */
   platformDefaultNote?: string;
+  /** Platform-default videos to preview (only while the agent has no uploads
+   *  of their own, since any upload replaces all defaults). */
+  defaults?: Array<{ id: string; title: string; iframeUrl: string; audience: string }>;
 }) {
   const [newTitle, setNewTitle] = useState('');
   const handleNewFile = useCallback((file: File) => {
@@ -122,7 +127,39 @@ function LeadVideoList({
         </span>
       </label>
 
-      {items.length === 0 && (
+      {/* Preview the platform defaults the agent's leads see right now. Only
+          while they have no uploads of their own — any upload replaces all
+          defaults. Lets them watch each, then decide to replace or hide. */}
+      {defaults && defaults.length > 0 && items.length === 0 && (
+        <div className="mb-3 rounded-[5px] border border-[#d7e8e4] bg-[#f3faf8] px-3 py-2.5">
+          <p className="text-[11px] font-semibold text-[#005851] mb-1.5">
+            {shownToLeads ? 'Default videos your leads see now' : 'Default videos (hidden right now)'}
+          </p>
+          <ul className="space-y-1.5">
+            {defaults.map((d) => (
+              <li key={d.id} className="flex items-center justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-medium text-[#374151] truncate">{d.title}</p>
+                  <p className="text-[10px] text-[#707070]">{d.audience}</p>
+                </div>
+                <a
+                  href={d.iframeUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[11px] text-[#44bbaa] hover:text-[#005751] font-semibold whitespace-nowrap"
+                >
+                  Preview &rarr;
+                </a>
+              </li>
+            ))}
+          </ul>
+          <p className="text-[10px] text-[#9aa0a6] mt-2 leading-snug">
+            Record or upload your own below to replace these, or uncheck above to hide the section.
+          </p>
+        </div>
+      )}
+
+      {items.length === 0 && !(defaults && defaults.length > 0) && (
         <p className="text-[11px] text-[#707070] mb-2">No videos uploaded yet.</p>
       )}
       <ul className="space-y-2 mb-3">
@@ -887,6 +924,7 @@ export default function AppointmentsLeadsTab({
             shownToLeads={agentProfile.showLeadFaqs !== false}
             onShownChange={(checked) => updateField('showLeadFaqs', checked)}
             platformDefaultNote="Leads automatically see two default FAQ videos — one matched to their age, plus one on coverage through work. Upload your own to replace them, or uncheck to hide."
+            defaults={LEAD_FAQ_DEFAULTS}
           />
 
           {/* Case studies */}
