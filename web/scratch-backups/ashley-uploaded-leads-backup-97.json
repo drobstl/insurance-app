@@ -1,0 +1,4195 @@
+[
+  {
+    "id": "1LIRBpKwHIeLKCicM8Oa",
+    "data": {
+      "name": "Thomas Butler",
+      "phone": "4782842677",
+      "leadCode": "4782842677",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.82,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "contact_phone_blank",
+        "no_age_or_dob",
+        "no_mortgage_balance_or_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "2301 Lee Ave",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "4782842677",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588684,
+        "_nanoseconds": 103000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782592213,
+        "_nanoseconds": 129000000
+      }
+    }
+  },
+  {
+    "id": "1S8UFCs7JpuGOMspG1sC",
+    "data": {
+      "name": "Qingya Boone",
+      "phone": "3473992165",
+      "leadCode": "3473992165",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "incomplete_address_no_city_state_zip",
+        "contact_phone_field_empty",
+        "primary_phone_used_as_contact",
+        "partial_call_in_lead_no_survey_data"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "5818 W Norfolk Rd",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "3473992165",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588662,
+        "_nanoseconds": 717000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782592213,
+        "_nanoseconds": 258000000
+      }
+    }
+  },
+  {
+    "id": "2LkgJrJfBvCSqG9X39RC",
+    "data": {
+      "name": "Sarah Labreau",
+      "phone": "4232627663",
+      "leadCode": "4232627663",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.8,
+      "extractionFlags": [
+        "incomplete_address_no_city_state_zip",
+        "no_contact_phone_only_primary_phone",
+        "partial_lead_call_ended_early"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "211 Old Union Rd",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "4232627663",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591488,
+        "_nanoseconds": 241000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594013,
+        "_nanoseconds": 3000000
+      }
+    }
+  },
+  {
+    "id": "32RnPVv25UehoYlHClMx",
+    "data": {
+      "name": "Tiffany Woods",
+      "phone": "7315134538",
+      "leadCode": "7315134538",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "contact_phone_blank",
+        "incomplete_address",
+        "no_mortgage_balance",
+        "no_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "518 Lesters Chapel",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "7315134538",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591494,
+        "_nanoseconds": 569000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594013,
+        "_nanoseconds": 126000000
+      }
+    }
+  },
+  {
+    "id": "35ax6yvdlFPGkPv9ivLc",
+    "data": {
+      "name": "Gene Fentress",
+      "phone": "6155691510",
+      "leadCode": "6155691510",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "no_contact_phone_value",
+        "no_mortgage_amount",
+        "no_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "316 Vailview Dr",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "6155691510",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591435,
+        "_nanoseconds": 595000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594013,
+        "_nanoseconds": 328000000
+      }
+    }
+  },
+  {
+    "id": "3eGistxsexKV4hLId6Wm",
+    "data": {
+      "name": "George Taylor",
+      "phone": "3012527501",
+      "leadCode": "3012527501",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "contact_phone_blank",
+        "no_age_or_dob",
+        "no_mortgage_amount_or_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "11813 Vale Rd",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "3012527501",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588609,
+        "_nanoseconds": 170000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782590414,
+        "_nanoseconds": 349000000
+      }
+    }
+  },
+  {
+    "id": "3kkmPFiHX0IP4YflZ7Ff",
+    "data": {
+      "name": "Evelyn Chadwick",
+      "phone": "7573352788",
+      "leadCode": "7573352788",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "contact_phone_blank",
+        "no_mortgage_amount",
+        "no_lender",
+        "partial_address"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "5640 Darby Close",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "7573352788",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588602,
+        "_nanoseconds": 900000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782590414,
+        "_nanoseconds": 478000000
+      }
+    }
+  },
+  {
+    "id": "3prhHsiEmQGvePafjZpQ",
+    "data": {
+      "name": "Krissy Garrison",
+      "phone": "6154769299",
+      "leadCode": "6154769299",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "incomplete_address_city_state_zip_missing",
+        "contact_phone_blank",
+        "no_age_or_dob",
+        "no_mortgage_balance_or_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "283 Haven Way",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "6154769299",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591466,
+        "_nanoseconds": 650000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594013,
+        "_nanoseconds": 512000000
+      }
+    }
+  },
+  {
+    "id": "5vNlMIzPKOT0jNhQkeoL",
+    "data": {
+      "name": "Upul Liyanage",
+      "phone": "5713460159",
+      "leadCode": "5713460159",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "no_contact_phone_value",
+        "no_mortgage_balance",
+        "no_lender",
+        "incomplete_address"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "14624 Danville Rd",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "5713460159",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588690,
+        "_nanoseconds": 322000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782592213,
+        "_nanoseconds": 391000000
+      }
+    }
+  },
+  {
+    "id": "7ABNm0l5GwVDdKn1rsuW",
+    "data": {
+      "name": "Deborah Alston",
+      "phone": "7574087335",
+      "leadCode": "7574087335",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "incomplete_address_no_city_state_zip",
+        "contact_phone_blank",
+        "no_age_or_dob",
+        "no_mortgage_balance_or_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "3904 Spring",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "7574087335",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588594,
+        "_nanoseconds": 814000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782590414,
+        "_nanoseconds": 608000000
+      }
+    }
+  },
+  {
+    "id": "7AaUuGlo2u8vjMYb1Bw5",
+    "data": {
+      "name": "Frankie Buford",
+      "phone": "6153376737",
+      "leadCode": "6153376737",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "contact_phone_blank",
+        "no_age_or_dob",
+        "no_mortgage_balance_or_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "335 Oak Hollow Rd",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "6153376737",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588714,
+        "_nanoseconds": 434000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782592213,
+        "_nanoseconds": 605000000
+      }
+    }
+  },
+  {
+    "id": "7KTrJ6L1F5CqNm5bKR3v",
+    "data": {
+      "name": "Hannah Blakely",
+      "phone": "7315920989",
+      "leadCode": "7315920989",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "no_contact_phone_value",
+        "no_mortgage_amount",
+        "no_lender",
+        "incomplete_address"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "6298 Tatumville Rd",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "7315920989",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591436,
+        "_nanoseconds": 27000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594013,
+        "_nanoseconds": 618000000
+      }
+    }
+  },
+  {
+    "id": "7P5AGXHZBmMrIPqqKluW",
+    "data": {
+      "name": "Jon Sowers",
+      "phone": "2088903602",
+      "leadCode": "2088903602",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "contact_phone_blank",
+        "no_age_or_dob",
+        "no_mortgage_amount_or_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "4117 Vervilla Rd",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "2088903602",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588714,
+        "_nanoseconds": 542000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782592213,
+        "_nanoseconds": 841000000
+      }
+    }
+  },
+  {
+    "id": "7YjV7MLuRQLz9zD5d7BI",
+    "data": {
+      "name": "Julian Guerra",
+      "phone": "5713644119",
+      "leadCode": "5713644119",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "incomplete_address_no_city_state_zip",
+        "contact_phone_blank",
+        "partial_lead_call_ended_early"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "9202 Afton Ct",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "5713644119",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588639,
+        "_nanoseconds": 786000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782592213,
+        "_nanoseconds": 966000000
+      }
+    }
+  },
+  {
+    "id": "84MXxc9gW0zgt840GpRF",
+    "data": {
+      "name": "James Bock",
+      "phone": "6293094157",
+      "leadCode": "6293094157",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "contact_phone_blank",
+        "no_mortgage_amount",
+        "no_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "836 Lakemont Dr",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "6293094157",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591447,
+        "_nanoseconds": 735000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594013,
+        "_nanoseconds": 801000000
+      }
+    }
+  },
+  {
+    "id": "8nTL9mIsaLWS68CwxwuV",
+    "data": {
+      "name": "Shelley Sihyeon",
+      "phone": "5715814404",
+      "leadCode": "5715814404",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "contact_phone_blank",
+        "no_age_or_dob",
+        "no_mortgage_balance_or_lender",
+        "incomplete_address"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "5466 Lighthouse Ln",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "5715814404",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591337,
+        "_nanoseconds": 260000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594013,
+        "_nanoseconds": 950000000
+      }
+    }
+  },
+  {
+    "id": "9rYiEppTdCnLBO9q4dZ2",
+    "data": {
+      "name": "James Motley",
+      "phone": "8049255020",
+      "leadCode": "8049255020",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "contact_phone_blank",
+        "no_age_or_dob",
+        "no_mortgage_balance",
+        "no_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "1100 E Ocean View",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "8049255020",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588615,
+        "_nanoseconds": 477000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782592214,
+        "_nanoseconds": 90000000
+      }
+    }
+  },
+  {
+    "id": "9t3ByR8zKmxENX1XIZzB",
+    "data": {
+      "name": "Timothy Dressman",
+      "phone": "9374099002",
+      "leadCode": "9374099002",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "contact_phone_blank",
+        "no_mortgage_balance",
+        "no_lender",
+        "incomplete_address"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "952 Saint Andrews",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "9374099002",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591337,
+        "_nanoseconds": 669000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594014,
+        "_nanoseconds": 72000000
+      }
+    }
+  },
+  {
+    "id": "9yCozcRQhzaBjIxkb9yw",
+    "data": {
+      "name": "Gregory Dunbar",
+      "phone": "3042224832",
+      "leadCode": "3042224832",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "no_mortgage_balance",
+        "no_lender",
+        "contact_phone_blank",
+        "incomplete_address"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "2868 Woodbridge",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "3042224832",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588615,
+        "_nanoseconds": 210000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782592214,
+        "_nanoseconds": 235000000
+      }
+    }
+  },
+  {
+    "id": "9yYh3h98whoxnndnwB1I",
+    "data": {
+      "name": "Philip Powell",
+      "phone": "3479025365",
+      "leadCode": "3479025365",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "incomplete_address_city_state_zip_missing",
+        "contact_phone_blank",
+        "no_mortgage_amount",
+        "no_lender",
+        "partial_call_in_lead"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "4921 Apricot Way",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "3479025365",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588656,
+        "_nanoseconds": 631000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782592214,
+        "_nanoseconds": 369000000
+      }
+    }
+  },
+  {
+    "id": "A4GOmdAK1qe9XYpHLIVN",
+    "data": {
+      "name": "Tina Lusk",
+      "phone": "6157153772",
+      "leadCode": "6157153772",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "contact_phone_blank",
+        "no_mortgage_amount",
+        "no_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "705 Dover Glen Dr",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "6157153772",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591500,
+        "_nanoseconds": 226000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594014,
+        "_nanoseconds": 210000000
+      }
+    }
+  },
+  {
+    "id": "AXNUYI1A0TbB9EF1fS6j",
+    "data": {
+      "name": "Trudie Tayse",
+      "phone": "6154808508",
+      "leadCode": "6154808508",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.8,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "contact_phone_blank",
+        "no_age_or_dob",
+        "no_mortgage_balance_or_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "194 Empire Dr",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "6154808508",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591500,
+        "_nanoseconds": 329000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594014,
+        "_nanoseconds": 329000000
+      }
+    }
+  },
+  {
+    "id": "D3reLPOcS7pMCqh5mWmC",
+    "data": {
+      "name": "Sheri Tittle",
+      "phone": "9312201163",
+      "leadCode": "9312201163",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "contact_phone_blank",
+        "no_mortgage_amount",
+        "no_lender",
+        "incomplete_address"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "410 Idaho Springs",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "9312201163",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591488,
+        "_nanoseconds": 389000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594014,
+        "_nanoseconds": 443000000
+      }
+    }
+  },
+  {
+    "id": "DvWxsSeADv0q1fyVUU3H",
+    "data": {
+      "name": "Wesley Deavers",
+      "phone": "5406834459",
+      "leadCode": "5406834459",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "incomplete_address_no_city_state_zip",
+        "contact_phone_blank",
+        "no_age_or_dob",
+        "no_mortgage_balance_or_lender",
+        "partial_callin_lead_survey_incomplete"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "24 Neville St",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "5406834459",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591348,
+        "_nanoseconds": 573000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594014,
+        "_nanoseconds": 567000000
+      }
+    }
+  },
+  {
+    "id": "ENirORBnWkk9KeLvpMT2",
+    "data": {
+      "name": "Bobby Mills",
+      "phone": "7317801871",
+      "leadCode": "7317801871",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "contact_phone_blank",
+        "no_age_or_dob",
+        "no_mortgage_balance_or_lender",
+        "incomplete_address"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "140 Calumet Cv",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "7317801871",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591361,
+        "_nanoseconds": 581000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594014,
+        "_nanoseconds": 701000000
+      }
+    }
+  },
+  {
+    "id": "EeVKjcSh494lAsBGSIlS",
+    "data": {
+      "name": "Dalen Davis",
+      "phone": "4238145117",
+      "leadCode": "4238145117",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "no_contact_phone_filled",
+        "no_mortgage_amount",
+        "no_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "2575 Bat Creek Rd",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "4238145117",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588708,
+        "_nanoseconds": 210000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782592214,
+        "_nanoseconds": 487000000
+      }
+    }
+  },
+  {
+    "id": "ExiMZ0VGMwxq1MZGaFsG",
+    "data": {
+      "name": "George Pendergrass",
+      "phone": "3255138189",
+      "leadCode": "3255138189",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "no_contact_phone_value",
+        "no_mortgage_amount",
+        "no_lender",
+        "incomplete_address"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "1205 Green Valley",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "3255138189",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591435,
+        "_nanoseconds": 905000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594014,
+        "_nanoseconds": 867000000
+      }
+    }
+  },
+  {
+    "id": "FA3W3BJBqyrqn8gDFCAa",
+    "data": {
+      "name": "Tecora Davis",
+      "phone": "4344267957",
+      "leadCode": "4344267957",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.82,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "no_contact_phone_filled",
+        "no_mortgage_amount",
+        "no_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "44 Peters Ln",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "4344267957",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591337,
+        "_nanoseconds": 473000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594015,
+        "_nanoseconds": 75000000
+      }
+    }
+  },
+  {
+    "id": "FLEM4Pn59va0cH41vLIp",
+    "data": {
+      "name": "Elisha Mercado",
+      "phone": "3478526969",
+      "leadCode": "3478526969",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "contact_phone_blank",
+        "no_age_or_dob",
+        "no_mortgage_balance_or_lender",
+        "partial_call_in_lead"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "4796 Dunfield Dr",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "3478526969",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591429,
+        "_nanoseconds": 176000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594015,
+        "_nanoseconds": 194000000
+      }
+    }
+  },
+  {
+    "id": "FSnpMLdqeV4THKmJd0sF",
+    "data": {
+      "name": "Joshua Davis",
+      "phone": "7576471168",
+      "leadCode": "7576471168",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "no_contact_phone_filled",
+        "no_mortgage_amount",
+        "no_lender",
+        "incomplete_address"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "7251 Canal St",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "7576471168",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588639,
+        "_nanoseconds": 638000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782592214,
+        "_nanoseconds": 621000000
+      }
+    }
+  },
+  {
+    "id": "GRuwyftEu5AwfjDfiEZi",
+    "data": {
+      "name": "Bonnie Aubin",
+      "phone": "4234910426",
+      "leadCode": "4234910426",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "ambiguous_state",
+        "missing_zip",
+        "contact_phone_blank",
+        "no_mortgage_balance",
+        "no_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "130 Valley Pt",
+        "city": "Gray",
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "4234910426",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588690,
+        "_nanoseconds": 564000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782592214,
+        "_nanoseconds": 736000000
+      }
+    }
+  },
+  {
+    "id": "HgdXhbVGAday7qOAtyc3",
+    "data": {
+      "name": "John Apple",
+      "phone": "6155543002",
+      "leadCode": "6155543002",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "contact_phone_blank",
+        "no_mortgage_amount",
+        "no_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "608 Emerson Ln",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "6155543002",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591453,
+        "_nanoseconds": 766000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594015,
+        "_nanoseconds": 319000000
+      }
+    }
+  },
+  {
+    "id": "IpdhbluQQInyDLgDzm1o",
+    "data": {
+      "name": "Caitlin Strumb",
+      "phone": "5407846824",
+      "leadCode": "5407846824",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "contact_phone_blank",
+        "no_age_or_dob",
+        "no_mortgage_balance_or_lender",
+        "partial_address"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "1321 Taylor St",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "5407846824",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588578,
+        "_nanoseconds": 946000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782590414,
+        "_nanoseconds": 761000000
+      }
+    }
+  },
+  {
+    "id": "JEFIACW3FZQxT092WRkC",
+    "data": {
+      "name": "Chad Bejany",
+      "phone": "6513367485",
+      "leadCode": "6513367485",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "incomplete_address_no_city_state_zip",
+        "contact_phone_blank_primary_phone_used",
+        "partial_call_in_lead_survey_incomplete"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "37 Timberline Cres",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "6513367485",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588585,
+        "_nanoseconds": 226000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782590414,
+        "_nanoseconds": 884000000
+      }
+    }
+  },
+  {
+    "id": "JP0mJ6Smew7GHWs7qqIN",
+    "data": {
+      "name": "Michael White",
+      "phone": "7573865613",
+      "leadCode": "7573865613",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "contact_phone_blank",
+        "no_age_or_dob",
+        "no_mortgage_amount_or_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "425 S Main St",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "7573865613",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588650,
+        "_nanoseconds": 344000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782592214,
+        "_nanoseconds": 895000000
+      }
+    }
+  },
+  {
+    "id": "JfDfjsHNURBhQEZL3zWe",
+    "data": {
+      "name": "Vincenza Black",
+      "phone": "7575757501",
+      "leadCode": "7575757501",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "no_contact_phone_filled",
+        "no_mortgage_amount",
+        "no_lender",
+        "incomplete_address"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "3114 Westminster",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "7575757501",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591348,
+        "_nanoseconds": 402000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594015,
+        "_nanoseconds": 452000000
+      }
+    }
+  },
+  {
+    "id": "LOYqf5EMqeOmQIWy47h2",
+    "data": {
+      "name": "Robert Taylor",
+      "phone": "7578937886",
+      "leadCode": "7578937886",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.78,
+      "extractionFlags": [
+        "incomplete_address_city_state_zip_missing",
+        "contact_phone_blank_primary_phone_used",
+        "no_mortgage_balance_or_lender_present"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "3701 Riverside Dr",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "7578937886",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588669,
+        "_nanoseconds": 891000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782592215,
+        "_nanoseconds": 13000000
+      }
+    }
+  },
+  {
+    "id": "LRP6q2pBGBSSGODgGRP2",
+    "data": {
+      "name": "William Capel",
+      "phone": "5189124527",
+      "leadCode": "5189124527",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "no_contact_phone_value",
+        "no_mortgage_balance",
+        "no_lender",
+        "incomplete_address"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "102 Stratford St",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "5189124527",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591354,
+        "_nanoseconds": 602000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594015,
+        "_nanoseconds": 573000000
+      }
+    }
+  },
+  {
+    "id": "LdGvggDLkSaySwV5PAVN",
+    "data": {
+      "name": "Dale Weber",
+      "phone": "6314560009",
+      "leadCode": "6314560009",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "incomplete_address_city_state_zip_missing",
+        "contact_phone_blank_primary_phone_used",
+        "low_confidence_address"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "123 Chahyga Way",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "6314560009",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591416,
+        "_nanoseconds": 118000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594015,
+        "_nanoseconds": 706000000
+      }
+    }
+  },
+  {
+    "id": "MSWu9X7gZDwvrTW53J8P",
+    "data": {
+      "name": "Takarra Simmons",
+      "phone": "9316391358",
+      "leadCode": "9316391358",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "incomplete_address_no_city_state_zip",
+        "contact_phone_blank",
+        "partial_lead_call_ended_early"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "102 Apache Pl",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "9316391358",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591494,
+        "_nanoseconds": 365000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594015,
+        "_nanoseconds": 842000000
+      }
+    }
+  },
+  {
+    "id": "MY6EQQFsVJBTEXofSJnX",
+    "data": {
+      "name": "Trevis Naylor",
+      "phone": "7037281934",
+      "leadCode": "7037281934",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "no_contact_phone_value",
+        "no_mortgage_balance",
+        "no_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "330 Shenandoah St",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "7037281934",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588684,
+        "_nanoseconds": 217000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782592215,
+        "_nanoseconds": 157000000
+      }
+    }
+  },
+  {
+    "id": "MaZyiP67orXTybM7tbRX",
+    "data": {
+      "name": "Carly Nihells",
+      "phone": "8473638578",
+      "leadCode": "8473638578",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "contact_phone_blank",
+        "no_age_or_dob",
+        "no_mortgage_balance_or_lender",
+        "partial_call_in_lead"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "4568 Hendon Rd",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "8473638578",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591409,
+        "_nanoseconds": 874000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594015,
+        "_nanoseconds": 976000000
+      }
+    }
+  },
+  {
+    "id": "NnxtNPqXxqPYLooQ5zuW",
+    "data": {
+      "name": "Hassan Ako",
+      "phone": "6156357773",
+      "leadCode": "6156357773",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.7,
+      "extractionFlags": [
+        "incomplete_address",
+        "ambiguous_city",
+        "no_state_extractable",
+        "no_zip_extractable",
+        "contact_phone_blank"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "114 Dahlia Dr",
+        "city": "La",
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "6156357773",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591441,
+        "_nanoseconds": 905000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594016,
+        "_nanoseconds": 93000000
+      }
+    }
+  },
+  {
+    "id": "QIjrwdGddMlx0cdTx0I2",
+    "data": {
+      "name": "Yun Lee",
+      "phone": "7038591742",
+      "leadCode": "7038591742",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "contact_phone_blank",
+        "no_mortgage_amount",
+        "no_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "8934 Milford Haven",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "7038591742",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588690,
+        "_nanoseconds": 450000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782592215,
+        "_nanoseconds": 756000000
+      }
+    }
+  },
+  {
+    "id": "QKInnwMURilRahEEkqLK",
+    "data": {
+      "name": "Scott Haber",
+      "phone": "6155242349",
+      "leadCode": "6155242349",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "incomplete_address_missing_city_state_zip",
+        "contact_phone_blank",
+        "mortgage_balance_not_visible",
+        "lender_not_visible"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "357 Pender Ct",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "6155242349",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588670,
+        "_nanoseconds": 125000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782592215,
+        "_nanoseconds": 883000000
+      }
+    }
+  },
+  {
+    "id": "QPSrcFb72ZxWROCbMktr",
+    "data": {
+      "name": "Alec Pine",
+      "phone": "7575600542",
+      "leadCode": "7575600542",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "no_contact_phone_value",
+        "no_mortgage_balance",
+        "no_lender",
+        "incomplete_address"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "1704 Fontainebleau",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "7575600542",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588571,
+        "_nanoseconds": 215000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782590415,
+        "_nanoseconds": 11000000
+      }
+    }
+  },
+  {
+    "id": "QgKKEBrQGKnvaeV7EySP",
+    "data": {
+      "name": "Patrick Taylor",
+      "phone": "7193318412",
+      "leadCode": "7193318412",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "no_contact_phone_filled",
+        "no_age_or_dob",
+        "no_mortgage_amount",
+        "no_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "2811 Lone Oak Rd",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "7193318412",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591475,
+        "_nanoseconds": 190000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594016,
+        "_nanoseconds": 209000000
+      }
+    }
+  },
+  {
+    "id": "Qyt3aCSYoPtHmL1y6RyF",
+    "data": {
+      "name": "Todd Lucas",
+      "phone": "5712508785",
+      "leadCode": "5712508785",
+      "codeKind": "derived",
+      "formType": "Mail-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782414420562-66781138-d1bf-46d4-a147-97d3181432fe-5-14-26.pdf",
+      "extractionConfidence": 0.95,
+      "extractionFlags": [],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "ageYears": 24,
+      "address": {
+        "street": "15498 Kings Hwy",
+        "city": "Montross",
+        "state": "VA",
+        "zip": "22520"
+      },
+      "phones": [
+        {
+          "number": "5712508785",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": 287878,
+        "lender": "CROSSCOUNTRY MORTGAGE LLC"
+      },
+      "createdAt": {
+        "_seconds": 1782414448,
+        "_nanoseconds": 751000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782417624,
+        "_nanoseconds": 898000000
+      }
+    }
+  },
+  {
+    "id": "R6HxCs2JCd5tTUQ27ZOB",
+    "data": {
+      "name": "Brad Adams",
+      "phone": "6153306672",
+      "leadCode": "6153306672",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "incomplete_address_state_zip_missing",
+        "contact_phone_blank",
+        "low_confidence_address_city_truncated"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "248 Karis Dr",
+        "city": "Spring",
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "6153306672",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591368,
+        "_nanoseconds": 749000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594016,
+        "_nanoseconds": 328000000
+      }
+    }
+  },
+  {
+    "id": "RO0sTjY8oyi5ODRIfWnL",
+    "data": {
+      "name": "Julio Almada",
+      "phone": "6154106759",
+      "leadCode": "6154106759",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "contact_phone_blank",
+        "incomplete_address_missing_city_state_zip",
+        "no_mortgage_balance",
+        "no_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "104 Indy Ct",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "6154106759",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591460,
+        "_nanoseconds": 93000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594016,
+        "_nanoseconds": 464000000
+      }
+    }
+  },
+  {
+    "id": "Rim2BedcQErCVGi1StEU",
+    "data": {
+      "name": "Salvador Guerra",
+      "phone": "8653331864",
+      "leadCode": "8653331864",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.75,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "no_contact_phone_filled",
+        "no_mortgage_amount",
+        "no_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "333 Edgelake Dr",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "8653331864",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591481,
+        "_nanoseconds": 460000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594016,
+        "_nanoseconds": 586000000
+      }
+    }
+  },
+  {
+    "id": "S9Ct0bHL66UqINptzEMp",
+    "data": {
+      "name": "Erroll Amacker",
+      "phone": "8042523779",
+      "leadCode": "8042523779",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "contact_phone_blank",
+        "no_mortgage_amount",
+        "no_lender",
+        "incomplete_address"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "6221 Dustin Dr",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "8042523779",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588602,
+        "_nanoseconds": 759000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782590415,
+        "_nanoseconds": 132000000
+      }
+    }
+  },
+  {
+    "id": "SlDwySy9dzztCKk1N2Sl",
+    "data": {
+      "name": "Robert Johnson",
+      "phone": "7577177264",
+      "leadCode": "7577177264",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_contact_phone",
+        "incomplete_address_city_state_zip",
+        "no_mortgage_balance",
+        "no_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "6940 Gregory Dr",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "7577177264",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588662,
+        "_nanoseconds": 960000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782592216,
+        "_nanoseconds": 166000000
+      }
+    }
+  },
+  {
+    "id": "TVVVrbsmtSw6BqJ4hKtd",
+    "data": {
+      "name": "Branden Boatwright",
+      "phone": "2178209924",
+      "leadCode": "2178209924",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "contact_phone_blank",
+        "no_mortgage_amount",
+        "no_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "524 Caffee Rd",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "2178209924",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588578,
+        "_nanoseconds": 833000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782590415,
+        "_nanoseconds": 249000000
+      }
+    }
+  },
+  {
+    "id": "TsRUVLXaCXxcLPTbsQ6I",
+    "data": {
+      "name": "Gary Chrisman",
+      "phone": "5403230390",
+      "leadCode": "5403230390",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "no_contact_phone_only_primary",
+        "incomplete_address",
+        "no_mortgage_amount",
+        "no_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "1876 Clayton Ridge",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "5403230390",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588608,
+        "_nanoseconds": 922000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782590415,
+        "_nanoseconds": 407000000
+      }
+    }
+  },
+  {
+    "id": "UL3hdLuGGkZczzAGItQR",
+    "data": {
+      "name": "Ingdia Holt",
+      "phone": "6157614385",
+      "leadCode": "6157614385",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "incomplete_address_city_state_zip_missing",
+        "contact_phone_blank",
+        "low_confidence_name_spelling_ingdia"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "408 Northside Dr",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "6157614385",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591442,
+        "_nanoseconds": 104000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594016,
+        "_nanoseconds": 706000000
+      }
+    }
+  },
+  {
+    "id": "UWuPht9Yn1uNdALWa59j",
+    "data": {
+      "name": "Jeremy Hooper",
+      "phone": "8042962854",
+      "leadCode": "8042962854",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.82,
+      "extractionFlags": [
+        "contact_phone_blank",
+        "incomplete_address_no_city_state_zip",
+        "no_mortgage_balance_or_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "693 Town Bridge",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "8042962854",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588628,
+        "_nanoseconds": 224000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782592216,
+        "_nanoseconds": 298000000
+      }
+    }
+  },
+  {
+    "id": "V6j67zTksJkD2ygGRuJ1",
+    "data": {
+      "name": "Laurie Huresky",
+      "phone": "7578175064",
+      "leadCode": "7578175064",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "no_contact_phone_filled",
+        "no_mortgage_amount",
+        "no_lender",
+        "incomplete_address"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "9034 Granby St",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "7578175064",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588650,
+        "_nanoseconds": 138000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782592216,
+        "_nanoseconds": 417000000
+      }
+    }
+  },
+  {
+    "id": "VB6han95FMOXeGy3tnNI",
+    "data": {
+      "name": "Herbert Blount",
+      "phone": "5719701013",
+      "leadCode": "5719701013",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "contact_phone_blank",
+        "no_age_or_dob",
+        "no_mortgage_balance_or_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "3709 S George",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "5719701013",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588615,
+        "_nanoseconds": 353000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782592216,
+        "_nanoseconds": 530000000
+      }
+    }
+  },
+  {
+    "id": "Y8P9lGRYIHClD3McN7aN",
+    "data": {
+      "name": "Kim Bennett",
+      "phone": "6155864914",
+      "leadCode": "6155864914",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "no_contact_phone_filled",
+        "no_age_or_dob",
+        "no_mortgage_balance_or_lender",
+        "incomplete_address"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "2305 Hunter Rd",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "6155864914",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591460,
+        "_nanoseconds": 331000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594016,
+        "_nanoseconds": 828000000
+      }
+    }
+  },
+  {
+    "id": "ZikOB8Vb2mN08a1tTgdc",
+    "data": {
+      "name": "Carlos Barrios",
+      "phone": "3526061949",
+      "leadCode": "3526061949",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "incomplete_address_no_city_state_zip",
+        "contact_phone_blank_primary_phone_used",
+        "no_age_or_dob",
+        "no_mortgage_balance_or_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "9912 Crossville",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "3526061949",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591409,
+        "_nanoseconds": 770000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594016,
+        "_nanoseconds": 949000000
+      }
+    }
+  },
+  {
+    "id": "aPYCi1OuFmrHXoPtbKsd",
+    "data": {
+      "name": "Dorothy Wood",
+      "phone": "5805044831",
+      "leadCode": "5805044831",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "incomplete_address_no_city_state_zip",
+        "contact_phone_blank_primary_phone_used",
+        "no_age_or_dob",
+        "no_mortgage_amount_or_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "4028 Burton Dr",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "5805044831",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591422,
+        "_nanoseconds": 384000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594017,
+        "_nanoseconds": 148000000
+      }
+    }
+  },
+  {
+    "id": "ahipSyjPOV20MtNgojjv",
+    "data": {
+      "name": "Jason Haislip",
+      "phone": "2762019817",
+      "leadCode": "2762019817",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "incomplete_address_no_city_state_zip",
+        "contact_phone_blank_primary_phone_used",
+        "no_mortgage_amount_or_lender_visible"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "500 Dogwood Dr",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "2762019817",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588621,
+        "_nanoseconds": 875000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782592216,
+        "_nanoseconds": 683000000
+      }
+    }
+  },
+  {
+    "id": "amzS5uBRe6gYrmk3p9NT",
+    "data": {
+      "name": "Kenneth Rice",
+      "phone": "5413241839",
+      "leadCode": "5413241839",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "contact_phone_blank",
+        "no_age_or_dob",
+        "no_mortgage_balance_or_lender",
+        "partial_address"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "1004 Foxmoor Dr",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "5413241839",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591460,
+        "_nanoseconds": 186000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594017,
+        "_nanoseconds": 297000000
+      }
+    }
+  },
+  {
+    "id": "arPfjck0OzjG8S0dljfW",
+    "data": {
+      "name": "Nan Qiu",
+      "phone": "4152005491",
+      "leadCode": "4152005491",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "incomplete_address_city_state_zip_missing",
+        "contact_phone_blank",
+        "partial_lead_call_ended_early"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "45928 Swallow Ter",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "4152005491",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588656,
+        "_nanoseconds": 494000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782592216,
+        "_nanoseconds": 849000000
+      }
+    }
+  },
+  {
+    "id": "b5oAIbQKTDZiVsoMt0Aj",
+    "data": {
+      "name": "Shirley Johnson",
+      "phone": "7572010124",
+      "leadCode": "7572010124",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.8,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "contact_phone_blank",
+        "no_mortgage_amount",
+        "no_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "605 Bancker Rd",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "7572010124",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588675,
+        "_nanoseconds": 969000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782592216,
+        "_nanoseconds": 981000000
+      }
+    }
+  },
+  {
+    "id": "b9IiAS4AspGsuOxLZ1jn",
+    "data": {
+      "name": "Carl Green",
+      "phone": "4233710142",
+      "leadCode": "4233710142",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_contact_phone",
+        "incomplete_address_no_city_state_zip",
+        "no_mortgage_balance",
+        "no_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "446 Christianburg",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "4233710142",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591409,
+        "_nanoseconds": 615000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594017,
+        "_nanoseconds": 418000000
+      }
+    }
+  },
+  {
+    "id": "bgBXorEwvCb6J4WHbzgm",
+    "data": {
+      "name": "Danny Stith",
+      "phone": "7036535121",
+      "leadCode": "7036535121",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "contact_phone_blank",
+        "no_age_or_dob",
+        "no_mortgage_balance_or_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "3 Short Branch Rd",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "7036535121",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588585,
+        "_nanoseconds": 521000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782590415,
+        "_nanoseconds": 538000000
+      }
+    }
+  },
+  {
+    "id": "c9R0S2VxUay6wM5SKhRT",
+    "data": {
+      "name": "Jessica Marsh",
+      "phone": "8047611809",
+      "leadCode": "8047611809",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "incomplete_address_no_city_state_zip",
+        "contact_phone_blank_primary_phone_used",
+        "no_age_or_dob",
+        "no_mortgage_amount_or_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "8715 Kings Hwy",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "8047611809",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588628,
+        "_nanoseconds": 446000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782592217,
+        "_nanoseconds": 103000000
+      }
+    }
+  },
+  {
+    "id": "dV90htRpS5rzCC6ICnk7",
+    "data": {
+      "name": "Joey Eubanks",
+      "phone": "8707766457",
+      "leadCode": "8707766457",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "no_contact_phone_value",
+        "no_mortgage_balance",
+        "no_lender",
+        "incomplete_address"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "410 Jack Miller Blvd",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "8707766457",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591447,
+        "_nanoseconds": 981000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594017,
+        "_nanoseconds": 551000000
+      }
+    }
+  },
+  {
+    "id": "egSycsx6U6P2vGKp79U2",
+    "data": {
+      "name": "Combs Kelly",
+      "phone": "6154541260",
+      "leadCode": "6154541260",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "ambiguous_name_order",
+        "incomplete_address",
+        "no_city_state_zip",
+        "contact_phone_blank"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "1012 Walnut Dr",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "6154541260",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588701,
+        "_nanoseconds": 222000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782592217,
+        "_nanoseconds": 232000000
+      }
+    }
+  },
+  {
+    "id": "f8j0weos7ukaCVIFndtJ",
+    "data": {
+      "name": "Augusta Arnold",
+      "phone": "7316930912",
+      "leadCode": "7316930912",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "contact_phone_blank",
+        "no_age_or_dob",
+        "no_mortgage_amount_or_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "391 Woodson Rd",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "7316930912",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591361,
+        "_nanoseconds": 182000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594017,
+        "_nanoseconds": 675000000
+      }
+    }
+  },
+  {
+    "id": "gIzhpKH4TWvRnKOCuNoT",
+    "data": {
+      "name": "Aaron Phillips",
+      "phone": "7577134849",
+      "leadCode": "7577134849",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "contact_phone_blank",
+        "no_mortgage_amount",
+        "no_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "phones": [
+        {
+          "number": "7577134849",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588571,
+        "_nanoseconds": 28000000
+      },
+      "address": {
+        "street": "3511 Foxhaven Dr",
+        "city": "Glouchester",
+        "state": "VA",
+        "zip": "23061"
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782590415,
+        "_nanoseconds": 678000000
+      }
+    }
+  },
+  {
+    "id": "gbPIUEPwezuKJDr59Us6",
+    "data": {
+      "name": "Sobah Gurusy",
+      "phone": "3474581216",
+      "leadCode": "3474581216",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "missing_contact_phone",
+        "incomplete_address",
+        "no_mortgage_balance",
+        "no_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "1324 Rock Chapel",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "3474581216",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588676,
+        "_nanoseconds": 201000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782592217,
+        "_nanoseconds": 370000000
+      }
+    }
+  },
+  {
+    "id": "glMNVdJbmsM5IpoBlR8h",
+    "data": {
+      "name": "Demetrius Person",
+      "phone": "7574396565",
+      "leadCode": "7574396565",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.8,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "contact_phone_blank",
+        "no_mortgage_balance",
+        "no_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "1204 Mt Vernon",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "7574396565",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588594,
+        "_nanoseconds": 963000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782590415,
+        "_nanoseconds": 793000000
+      }
+    }
+  },
+  {
+    "id": "gmVQ8GyIHNOY4fX6C6mN",
+    "data": {
+      "name": "Lydia Fagan",
+      "phone": "9319935319",
+      "leadCode": "9319935319",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "no_contact_phone_filled",
+        "incomplete_address",
+        "no_age_or_dob",
+        "no_mortgage_amount_or_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "200 Freeman Dr",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "9319935319",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591475,
+        "_nanoseconds": 87000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594017,
+        "_nanoseconds": 808000000
+      }
+    }
+  },
+  {
+    "id": "h0DkOpagGRv6whKqt2vA",
+    "data": {
+      "name": "James Smith",
+      "phone": "7573180483",
+      "leadCode": "7573180483",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "no_contact_phone_value",
+        "no_mortgage_amount",
+        "no_lender",
+        "incomplete_address"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "3422 Pamlico Cir",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "7573180483",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588621,
+        "_nanoseconds": 749000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782592217,
+        "_nanoseconds": 480000000
+      }
+    }
+  },
+  {
+    "id": "jHazP5P9FNO9ZMAvSlRr",
+    "data": {
+      "name": "Anthony George",
+      "phone": "7573058575",
+      "leadCode": "7573058575",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "incomplete_address_no_city_state_zip",
+        "contact_phone_blank_primary_phone_used",
+        "no_mortgage_amount_or_lender_present"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "32 E Big Sky Dr",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "7573058575",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588571,
+        "_nanoseconds": 352000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782590415,
+        "_nanoseconds": 908000000
+      }
+    }
+  },
+  {
+    "id": "jhffSeE4BHsHSbQCgzpZ",
+    "data": {
+      "name": "Ellie Bemrose",
+      "phone": "6159681350",
+      "leadCode": "6159681350",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.78,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "contact_phone_blank",
+        "no_mortgage_balance",
+        "no_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "7 Main St E",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "6159681350",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591429,
+        "_nanoseconds": 304000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594017,
+        "_nanoseconds": 927000000
+      }
+    }
+  },
+  {
+    "id": "jukMMOhWCvUNHS8z2Bp6",
+    "data": {
+      "name": "Joseph Britton",
+      "phone": "8653994619",
+      "leadCode": "8653994619",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.82,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "contact_phone_blank",
+        "no_age_or_dob",
+        "no_mortgage_amount_or_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "805 N Front St",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "8653994619",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591453,
+        "_nanoseconds": 853000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594018,
+        "_nanoseconds": 50000000
+      }
+    }
+  },
+  {
+    "id": "logm99N22XXEkxCHXL48",
+    "data": {
+      "name": "Stanley Tenney",
+      "phone": "7573398752",
+      "leadCode": "7573398752",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.75,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "no_contact_phone_value",
+        "no_mortgage_amount",
+        "no_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "501 W Ocean View",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "7573398752",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588676,
+        "_nanoseconds": 302000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782592217,
+        "_nanoseconds": 599000000
+      }
+    }
+  },
+  {
+    "id": "mkvBwRYR1BYpGl9RHSQB",
+    "data": {
+      "name": "Doyle Lamb",
+      "phone": "6154289050",
+      "leadCode": "6154289050",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.75,
+      "extractionFlags": [
+        "incomplete_address_city_state_zip_missing",
+        "contact_phone_blank",
+        "partial_call_in_lead"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "124 Kimberly Ln",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "6154289050",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591422,
+        "_nanoseconds": 541000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594018,
+        "_nanoseconds": 182000000
+      }
+    }
+  },
+  {
+    "id": "n74qQJVKeOJHnhnBRd1t",
+    "data": {
+      "name": "Lori Kaepp",
+      "phone": "3213010499",
+      "leadCode": "3213010499",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "incomplete_address",
+        "ambiguous_city",
+        "missing_state",
+        "missing_zip",
+        "no_mortgage_balance",
+        "no_lender",
+        "contact_phone_blank"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "108 West Dr",
+        "city": "La",
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "3213010499",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591475,
+        "_nanoseconds": 14000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594018,
+        "_nanoseconds": 295000000
+      }
+    }
+  },
+  {
+    "id": "o51f49FNaPCIb32hRB5L",
+    "data": {
+      "name": "Michael Simon",
+      "phone": "8436944874",
+      "leadCode": "8436944874",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "incomplete_address_no_city_state_zip",
+        "contact_phone_blank",
+        "partial_lead_survey_not_completed"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "2237 Champions",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "8436944874",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588650,
+        "_nanoseconds": 251000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782592217,
+        "_nanoseconds": 716000000
+      }
+    }
+  },
+  {
+    "id": "pAGOtE7wIWpkLwuKbjv2",
+    "data": {
+      "name": "Brooke Bennet",
+      "phone": "9045216915",
+      "leadCode": "9045216915",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "no_contact_phone_filled",
+        "incomplete_address",
+        "no_age_or_dob",
+        "no_mortgage_amount_or_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "2788 Ridgepole Dr",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "9045216915",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591368,
+        "_nanoseconds": 892000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594018,
+        "_nanoseconds": 412000000
+      }
+    }
+  },
+  {
+    "id": "ptOqOwCpiiNVBFoTEnPQ",
+    "data": {
+      "name": "Stephanie Easley",
+      "phone": "8655181865",
+      "leadCode": "8655181865",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_contact_phone",
+        "incomplete_address",
+        "no_city_state_zip",
+        "primary_phone_used_as_fallback"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "7927 Cambridge",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "8655181865",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591488,
+        "_nanoseconds": 483000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594018,
+        "_nanoseconds": 539000000
+      }
+    }
+  },
+  {
+    "id": "rwyKLTLYblr0nq3L9OYY",
+    "data": {
+      "name": "Albert Haupt",
+      "phone": "7252441709",
+      "leadCode": "7252441709",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "incomplete_address_no_city_state_zip",
+        "contact_phone_blank_primary_phone_used",
+        "no_age_or_dob",
+        "no_mortgage_balance_or_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "360 Laws Hill Rd",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "7252441709",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591354,
+        "_nanoseconds": 764000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594018,
+        "_nanoseconds": 681000000
+      }
+    }
+  },
+  {
+    "id": "sHOOu6j5T9nxelEFOKya",
+    "data": {
+      "name": "Eric Chadwick",
+      "phone": "5712941182",
+      "leadCode": "5712941182",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "no_contact_phone_filled",
+        "incomplete_address",
+        "no_mortgage_amount",
+        "no_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "2708 Cassidy Ct",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "5712941182",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588602,
+        "_nanoseconds": 634000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782590416,
+        "_nanoseconds": 33000000
+      }
+    }
+  },
+  {
+    "id": "toMp6w9gR3DX914BaSSm",
+    "data": {
+      "name": "Elisabeth Colby",
+      "phone": "6152431335",
+      "leadCode": "6152431335",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "contact_phone_blank",
+        "no_age_or_dob",
+        "no_mortgage_amount",
+        "no_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "244 Boxmere Pl",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "6152431335",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588708,
+        "_nanoseconds": 307000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782592217,
+        "_nanoseconds": 837000000
+      }
+    }
+  },
+  {
+    "id": "tqdFueyBCm3rdgdhtPck",
+    "data": {
+      "name": "Edward Dotson",
+      "phone": "7315920108",
+      "leadCode": "7315920108",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.78,
+      "extractionFlags": [
+        "contact_phone_blank",
+        "incomplete_address_no_city_state_zip",
+        "no_age_or_dob",
+        "no_mortgage_balance_or_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "1212 Demonbreun",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "7315920108",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591422,
+        "_nanoseconds": 661000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594018,
+        "_nanoseconds": 793000000
+      }
+    }
+  },
+  {
+    "id": "v7jp0E95ihbJwAOB7nLN",
+    "data": {
+      "name": "Bayar Bajlory",
+      "phone": "4046621389",
+      "leadCode": "4046621389",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "incomplete_address_city_state_zip_missing",
+        "contact_phone_blank",
+        "partial_lead_call_ended_early"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "4512 Cresto Loop",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "4046621389",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591361,
+        "_nanoseconds": 342000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594018,
+        "_nanoseconds": 944000000
+      }
+    }
+  },
+  {
+    "id": "vE01a3gfd7MXEea8reIw",
+    "data": {
+      "name": "Chandragupta Gudena",
+      "phone": "3128829424",
+      "leadCode": "3128829424",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "no_contact_phone_value",
+        "no_mortgage_balance",
+        "no_lender",
+        "incomplete_address"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "4565 Bacova Club",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "3128829424",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588585,
+        "_nanoseconds": 386000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782590416,
+        "_nanoseconds": 149000000
+      }
+    }
+  },
+  {
+    "id": "voH87pjYRNUqEhz18tOY",
+    "data": {
+      "name": "Jessica Collazo",
+      "phone": "8133527481",
+      "leadCode": "8133527481",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "no_contact_phone_filled",
+        "incomplete_address",
+        "no_mortgage_balance_or_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "533 Renee Way",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "8133527481",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591447,
+        "_nanoseconds": 847000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594019,
+        "_nanoseconds": 74000000
+      }
+    }
+  },
+  {
+    "id": "w8XHymVy4UWLQIvOV8DH",
+    "data": {
+      "name": "Lisa Harness",
+      "phone": "6153544631",
+      "leadCode": "6153544631",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.8,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "contact_phone_blank",
+        "no_mortgage_amount",
+        "no_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "253 Wilson Hollow",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "6153544631",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591466,
+        "_nanoseconds": 772000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594019,
+        "_nanoseconds": 244000000
+      }
+    }
+  },
+  {
+    "id": "xmsDdy5bonYxuv1v3JAD",
+    "data": {
+      "name": "Donald Kennedy",
+      "phone": "9312662069",
+      "leadCode": "9312662069",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782591325132-eec3efca-925c-4da3-abe6-1950e21eb005-5-14-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "contact_phone_blank",
+        "no_age_or_dob",
+        "no_mortgage_balance_or_lender",
+        "partial_address"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "2269 Ermine Dr",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "9312662069",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782591416,
+        "_nanoseconds": 265000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782594019,
+        "_nanoseconds": 369000000
+      }
+    }
+  },
+  {
+    "id": "zON7xM5OcBojdBlo1rZ7",
+    "data": {
+      "name": "Jessica Doescher",
+      "phone": "4342652814",
+      "leadCode": "4342652814",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "missing_city_state_zip",
+        "contact_phone_blank",
+        "no_age_or_dob",
+        "no_mortgage_balance",
+        "no_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "15050 Horseshoe",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "4342652814",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588628,
+        "_nanoseconds": 343000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782592218,
+        "_nanoseconds": 81000000
+      }
+    }
+  },
+  {
+    "id": "zSt18FH7ArLliLaE0OBv",
+    "data": {
+      "name": "Randon Flores",
+      "phone": "7868608545",
+      "leadCode": "7868608545",
+      "codeKind": "derived",
+      "formType": "Call-In",
+      "sourceFileStoragePath": "agents/HWWkdk6h0wSxjLA1xwUhXRl1iXX2/leads/_batch-uploads/1782588546988-c993e100-be10-4207-bc48-f0b8054e6a9b-6-23-26.pdf",
+      "extractionConfidence": 0.72,
+      "extractionFlags": [
+        "incomplete_address_no_city_state_zip",
+        "contact_phone_blank",
+        "no_mortgage_balance",
+        "no_lender"
+      ],
+      "createdBy": "HWWkdk6h0wSxjLA1xwUhXRl1iXX2",
+      "address": {
+        "street": "5501 Niles Rd",
+        "city": null,
+        "state": null,
+        "zip": null
+      },
+      "phones": [
+        {
+          "number": "7868608545",
+          "label": null
+        }
+      ],
+      "mortgageDetails": {
+        "balance": null,
+        "lender": null
+      },
+      "createdAt": {
+        "_seconds": 1782588662,
+        "_nanoseconds": 844000000
+      },
+      "sourceFileArchivedAt": {
+        "_seconds": 1782592218,
+        "_nanoseconds": 203000000
+      }
+    }
+  }
+]
