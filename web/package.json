@@ -16,6 +16,7 @@
     "test:reset-reveal-cadence": "node --import tsx ./tests/reset-reveal-cadence/run-smoke.ts",
     "test:thread-routing": "node --import tsx ./tests/thread-routing/run-smoke.ts",
     "test:quiet-hours": "node --import tsx ./tests/quiet-hours/run-smoke.ts",
+    "test:challenge-math": "node --import tsx ./tests/challenge-math/run-smoke.ts",
     "test:oauth-redirect": "node --import tsx ./tests/oauth-redirect/run-smoke.ts",
     "test:client-dedup": "node --require ./scripts/server-only-shim.cjs --import tsx ./tests/client-dedup/run-smoke.ts",
     "test:lead-dedup": "node --require ./scripts/server-only-shim.cjs --import tsx ./tests/lead-dedup/run-smoke.ts",
