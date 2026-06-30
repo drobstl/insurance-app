@@ -106,12 +106,11 @@ export async function POST(req: NextRequest) {
       assessmentAnswers: cleanAnswers,
       assessmentCompletedAt: FieldValue.serverTimestamp(),
       leadScore,
-      // Smart follow-up (Step 2): finishing the in-app assessment is a strong
-      // "warm right now" signal — auto-surface the lead in the agent's
-      // Follow-ups-due (followUpAt <= now) so they reach out while it's hot.
-      // Overwrites any prior date because this is the freshest reason to call.
-      followUpAt: FieldValue.serverTimestamp(),
-      followUpNote: 'Just finished the in-app assessment — reach out while warm',
+      // NOTE: do NOT auto-set a follow-up here. A lead can only take the in-app
+      // assessment AFTER the agent has reached them and handed over the app —
+      // so they're already in conversation (often already booked, like the
+      // case that surfaced this). "Assessment done → go reach out" is backwards
+      // and was removed. App engagement is the wrong axis for outreach timing.
     });
 
     // Activity-feed entry on the agent's `leadActivity` subcollection. The

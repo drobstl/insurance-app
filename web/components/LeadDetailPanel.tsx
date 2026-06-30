@@ -40,6 +40,7 @@ import {
   getFifResetChip,
   isAppointmentOutcomeChipStatus,
 } from '../lib/appointment-outcome-chip';
+import { isLeadCreditEligible, getLeadCreditChip, LEAD_CREDIT_NOTE } from '../lib/lead-credit-chip';
 import { DIMENSION_MAX, type LeadScore } from '../lib/lead-assessment';
 import { LeadTempChip } from './LeadTempChip';
 import { isDerivedLeadCode } from '../lib/lead-code-derive';
@@ -1635,7 +1636,15 @@ export default function LeadDetailPanel({
                   {fifResetChip.label}
                 </span>
               )}
+              {isLeadCreditEligible(lead.ageYears, lead.dateOfBirth) && (
+                <span className={`inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded ${getLeadCreditChip().classes}`}>
+                  {getLeadCreditChip().label}
+                </span>
+              )}
             </div>
+            {isLeadCreditEligible(lead.ageYears, lead.dateOfBirth) && (
+              <p className="text-[13px] font-semibold text-[#9A5B00] mt-1 leading-snug">{LEAD_CREDIT_NOTE}</p>
+            )}
             {lead.leadScore && (
               <p className="text-[13px] text-[#374151] mt-1 leading-snug">{lead.leadScore.summary}</p>
             )}
@@ -1672,6 +1681,13 @@ export default function LeadDetailPanel({
             leadId={lead.id}
             followUpAt={lead.followUpAt}
             followUpNote={lead.followUpNote}
+            booked={
+              !!lead.convertedToClientId ||
+              appointments.some((a) => {
+                const t = a.scheduledAt?.toMillis();
+                return a.status === 'scheduled' && typeof t === 'number' && t > Date.now();
+              })
+            }
           />
         </div>
 
@@ -1692,6 +1708,48 @@ export default function LeadDetailPanel({
               onCall={(num) => handleStartCall(num)}
               primaryPhone={lead.phone}
             />
+          )}
+
+          {/* Outcome prompt — docked directly under the Call button so it
+              surfaces the instant the agent taps Call and can't be missed
+              or scrolled past (it previously rendered at the very bottom of
+              the panel, below the fold on a laptop). Stays open until an
+              outcome is picked — call length is unpredictable — and one tap
+              writes the dialLog, which the live snapshot renders in the
+              history below. */}
+          {outcomePrompt && (
+            <div className="bg-[#FEFCE8] border-2 border-[#FCD34D] rounded-xl border-r-[5px] border-b-[5px] border-r-[#FCD34D] border-b-[#FCD34D] p-4">
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div>
+                  <p className="text-sm font-bold text-[#92400E]">How did the call go?</p>
+                  <p className="text-xs text-[#92400E]/80 mt-0.5">
+                    Tap an outcome — keeps your dial queue accurate.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setOutcomePrompt(false)}
+                  disabled={loggingOutcome}
+                  className="text-[#92400E]/60 hover:text-[#92400E] text-xs font-semibold"
+                >
+                  Skip
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {(Object.keys(DIAL_OUTCOME_LABELS) as DialOutcome[]).map((outcome) => (
+                  <button
+                    key={outcome}
+                    onClick={() => void handleLogOutcome(outcome)}
+                    disabled={loggingOutcome}
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg border-2 ${DIAL_OUTCOME_TONE[outcome]} hover:opacity-80 transition-opacity disabled:opacity-40`}
+                  >
+                    {DIAL_OUTCOME_LABELS[outcome]}
+                  </button>
+                ))}
+              </div>
+              {outcomeError && (
+                <p className="mt-2 text-xs text-red-600">{outcomeError}</p>
+              )}
+            </div>
           )}
 
           {/* Book appointment + Close Sale are the two prominent
@@ -1817,46 +1875,6 @@ export default function LeadDetailPanel({
           </span>
         </div>
       </div>
-
-      {/* Outcome prompt — appears when the agent has tapped Call.
-          Stays open until the agent picks an outcome (no auto-dismiss
-          since the call duration is unpredictable). The chip group
-          updates Firestore in 1 tap; the live snapshot listener picks
-          up the new dialLog entry and renders it in the history below. */}
-      {outcomePrompt && (
-        <div className="mb-6 bg-[#FEFCE8] border-2 border-[#FCD34D] rounded-xl border-r-[5px] border-b-[5px] border-r-[#FCD34D] border-b-[#FCD34D] p-4">
-          <div className="flex items-start justify-between gap-3 mb-3">
-            <div>
-              <p className="text-sm font-bold text-[#92400E]">How did the call go?</p>
-              <p className="text-xs text-[#92400E]/80 mt-0.5">
-                Tap an outcome — keeps your dial queue accurate.
-              </p>
-            </div>
-            <button
-              onClick={() => setOutcomePrompt(false)}
-              disabled={loggingOutcome}
-              className="text-[#92400E]/60 hover:text-[#92400E] text-xs font-semibold"
-            >
-              Skip
-            </button>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {(Object.keys(DIAL_OUTCOME_LABELS) as DialOutcome[]).map((outcome) => (
-              <button
-                key={outcome}
-                onClick={() => void handleLogOutcome(outcome)}
-                disabled={loggingOutcome}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg border-2 ${DIAL_OUTCOME_TONE[outcome]} hover:opacity-80 transition-opacity disabled:opacity-40`}
-              >
-                {DIAL_OUTCOME_LABELS[outcome]}
-              </button>
-            ))}
-          </div>
-          {outcomeError && (
-            <p className="mt-2 text-xs text-red-600">{outcomeError}</p>
-          )}
-        </div>
-      )}
 
       {/* Dial script overlay — floats bottom-right while the outcome prompt
           is showing. Goes away when the agent picks an outcome (or hits

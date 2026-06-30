@@ -10,6 +10,7 @@ import { useDashboard } from '../DashboardContext';
 import type { AgentProfile } from '../DashboardContext';
 import { captureEvent } from '../../../lib/posthog';
 import { ANALYTICS_EVENTS } from '../../../lib/analytics-events';
+import { LEAD_FAQ_DEFAULT_COST, LEAD_FAQ_DEFAULT_WORK } from '../../../lib/lead-faq-defaults';
 import {
   resizeImage,
   getCroppedImage,
@@ -50,9 +51,20 @@ function LeadHomePreview({ agentProfile }: { agentProfile: AgentProfile }) {
   const introPlayable = !!(lc?.intro?.url || lc?.intro?.iframeUrl);
   const introThumb = lc?.intro?.thumbnailUrl;
   const faqs = lc?.faqs ?? [];
-  const faqItems: Array<{ title: string; thumbnailUrl?: string }> = faqs.length
-    ? faqs.slice(0, 2)
-    : [{ title: 'Is this a sales pitch?' }, { title: 'How long does this take?' }];
+  // Mirror the live manifest (resolveFaqs): the agent's own uploads win;
+  // otherwise leads see the real default FAQ videos; an explicit opt-out
+  // hides the section entirely. We show the cost + work defaults as the
+  // representative pair (the age-aware slot resolves to "cost" for any lead
+  // whose age we don't know, which is the common case).
+  const faqItems: Array<{ title: string; thumbnailUrl?: string }> =
+    agentProfile.showLeadFaqs === false
+      ? []
+      : faqs.length
+      ? faqs.slice(0, 2)
+      : [
+          { title: LEAD_FAQ_DEFAULT_COST.title, thumbnailUrl: LEAD_FAQ_DEFAULT_COST.thumbnailUrl },
+          { title: LEAD_FAQ_DEFAULT_WORK.title, thumbnailUrl: LEAD_FAQ_DEFAULT_WORK.thumbnailUrl },
+        ];
   const qCount = (lc as { assessment?: unknown[] } | undefined)?.assessment?.length ?? 7;
   const agentFirst = agentProfile.name?.split(' ')[0] || 'your agent';
   return (
@@ -90,7 +102,9 @@ function LeadHomePreview({ agentProfile }: { agentProfile: AgentProfile }) {
                 <span className="text-[#063b35] text-[15px] font-bold shrink-0">&rarr;</span>
               </div>
             </div>
-            {/* Step 2 — FAQ tiles, 2-up */}
+            {/* Step 2 — FAQ tiles, 2-up. Hidden entirely if the agent turned
+                the FAQ section off (matches the lead-home). */}
+            {faqItems.length > 0 && (
             <div>
               <p className="text-[#0f7d68] text-[9px] font-bold uppercase tracking-[0.1em] mb-1.5">Step 2 &middot; Common questions</p>
               <div className="grid grid-cols-2 gap-2">
@@ -104,11 +118,12 @@ function LeadHomePreview({ agentProfile }: { agentProfile: AgentProfile }) {
                       </>
                     )}
                     <span className="absolute top-1.5 right-1.5 z-10 w-5 h-5 rounded-full bg-[#3DD6C3] flex items-center justify-center text-[#0D4D4D] text-[8px]">▶</span>
-                    <p className="relative z-10 text-white text-[9px] font-semibold leading-snug">{f.title}</p>
+                    <p className="relative z-10 text-white text-[9px] font-semibold leading-snug line-clamp-2 pr-6">{f.title}</p>
                   </div>
                 ))}
               </div>
             </div>
+            )}
           </div>
         </div>
       </div>
