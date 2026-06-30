@@ -148,6 +148,10 @@ export interface AgentProfile {
   carrierStripBase64?: string;
   referralMessage?: string;
   isFoundingMember?: boolean;
+  /** Agency-layer owner flag (set manually by admin via
+   *  /api/admin/set-agency-owner). Gates the "My Team" downline
+   *  dashboard. Downline = agents whose `referredByAgent` is this uid. */
+  isAgencyOwner?: boolean;
   schedulingUrl?: string;
   autoHolidayCards?: boolean;
   aiAssistantEnabled?: boolean;
@@ -452,6 +456,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           carrierStripBase64: data.carrierStripBase64,
           referralMessage: data.referralMessage,
           isFoundingMember: data.isFoundingMember,
+          isAgencyOwner: data.isAgencyOwner === true,
           schedulingUrl: data.schedulingUrl,
           autoHolidayCards: data.autoHolidayCards,
           aiAssistantEnabled: data.aiAssistantEnabled,
