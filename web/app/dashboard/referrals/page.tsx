@@ -169,11 +169,11 @@ export default function ReferralsPage() {
             <h3 className="text-sm font-semibold text-[#000000] mb-1">AI Referral Assistant</h3>
             {aiAssistantEnabled ? (
               <p className="text-sm text-[#707070]">
-                Referral texts are handled by AI via iMessage — responding as you, building trust through conversation, and booking appointments.
+                Every referral gets texted the moment it lands — as you, from a real iMessage — qualified in conversation and booked on your calendar. Nothing slips, nothing goes cold; you just show up to appointments that are already set.
               </p>
             ) : canEnableAi ? (
               <p className="text-sm text-[#707070]">
-                Enable AI to automatically text referrals via iMessage, have qualifying conversations, and book appointments — all as you.
+                Referrals are the warmest leads you&rsquo;ll ever get &mdash; and they go cold fast. Turn this on and every one gets texted the instant it lands, as you, from a real iMessage: qualified, and booked on your calendar, around the clock. While other agents let referrals sit for three days, yours are already on the books.
               </p>
             ) : (
               <div className="space-y-1.5">
