@@ -2590,6 +2590,9 @@ function LeadsPageInner() {
                             })()}
                             <LeadTagChips tagIds={lead.tagIds} tags={agentProfile.leadTags ?? []} />
                             {(() => {
+                              // Suppress the follow-up chip once the lead is booked
+                              // or converted — the next step isn't another outreach.
+                              if (nextApptByLead.has(lead.id) || lead.convertedToClientId) return null;
                               const fu = followUpChip(lead.followUpAt);
                               return fu ? (
                                 <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold tracking-wide rounded ${fu.classes}`}>{fu.label}</span>
