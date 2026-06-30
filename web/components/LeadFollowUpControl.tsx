@@ -86,7 +86,9 @@ export function LeadFollowUpControl({
           </button>
         </>
       ) : (
-        <span className="text-xs text-[#9CA3AF]">— none set</span>
+        <span className="text-xs text-[#9CA3AF]">
+          — none set · pick a date to bump this lead back to the top of your queue then
+        </span>
       )}
     </div>
   );
