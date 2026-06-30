@@ -118,7 +118,7 @@ function LeadHomePreview({ agentProfile }: { agentProfile: AgentProfile }) {
                       </>
                     )}
                     <span className="absolute top-1.5 right-1.5 z-10 w-5 h-5 rounded-full bg-[#3DD6C3] flex items-center justify-center text-[#0D4D4D] text-[8px]">▶</span>
-                    <p className="relative z-10 text-white text-[9px] font-semibold leading-snug">{f.title}</p>
+                    <p className="relative z-10 text-white text-[9px] font-semibold leading-snug line-clamp-2 pr-6">{f.title}</p>
                   </div>
                 ))}
               </div>
