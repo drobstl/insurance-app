@@ -5,6 +5,7 @@ import {
   type LeadFilters,
   activeFilterChips,
   coerceLeadFilters,
+  hasActiveFilters,
 } from '../lib/lead-filters';
 import { type LeadTag } from '../lib/lead-tag';
 
@@ -63,10 +64,12 @@ export function SmartLeadSearch({
       });
       if (!res.ok) throw new Error(`translate ${res.status}`);
       const data = await res.json();
-      // Replace the working set with the understood intent; leftover free text
-      // stays in the box as a keyword search. coerce is belt-and-suspenders —
-      // the server already coerced.
-      setFilters(coerceLeadFilters(data.filters));
+      // Replace the working set with the understood intent — BUT only when the
+      // sentence actually produced filters. A plain keyword ("john") translates
+      // to empty filters; replacing then would silently wipe filters the agent
+      // set by hand, so we leave those alone and just run the keyword search.
+      const next = coerceLeadFilters(data.filters);
+      if (hasActiveFilters(next)) setFilters(next);
       setSearchQuery(typeof data.searchQuery === 'string' ? data.searchQuery : '');
     } catch {
       // Leave searchQuery as-is — live keyword search already covers it.

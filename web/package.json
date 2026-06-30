@@ -12,6 +12,7 @@
     "smoke:leads": "node --require ./scripts/server-only-shim.cjs --import tsx ./tests/lead-corpus/run-smoke.ts",
     "smoke:firstpromoter": "node --require ./scripts/server-only-shim.cjs --import tsx ./scripts/firstpromoter-smoke.ts",
     "test:lead-csv-parse": "node --import tsx ./tests/lead-csv-parse/run-smoke.ts",
+    "test:lead-filters": "node --import tsx ./tests/lead-filters/run-smoke.ts",
     "test:reset-product-match": "node --import tsx ./tests/reset-product-match/run-smoke.ts",
     "test:reset-reveal-cadence": "node --import tsx ./tests/reset-reveal-cadence/run-smoke.ts",
     "test:thread-routing": "node --import tsx ./tests/thread-routing/run-smoke.ts",
