@@ -14,6 +14,8 @@ import { computeBadges, type EarnedBadge } from '../../lib/badges';
 import SectionTipCard from '../../components/SectionTipCard';
 import NextTrainingSessionCard from '../../components/NextTrainingSessionCard';
 import BadgeProgressCard from '../../components/BadgeProgressCard';
+import TodaysChallengeCard from '../../components/TodaysChallengeCard';
+import { CHALLENGES_ENABLED } from '../../lib/feature-flags';
 import WhatsNewSpotlight from '../../components/WhatsNewSpotlight';
 import GetStartedHome from '../../components/GetStartedHome';
 import GraduationCelebration from '../../components/GraduationCelebration';
@@ -361,6 +363,12 @@ export default function DashboardHomePage() {
         </div>
         <ReferEarnPromoCard />
       </div>
+
+      {/* ── Today's Challenge (gamification) ───────────────────── */}
+      {/* Self-competition card: beat yesterday's dials + beat last week.
+          Calmer twin of the leads Scoreboard. Gated on
+          NEXT_PUBLIC_CHALLENGES_ENABLED; self-hides until progress loads. */}
+      {CHALLENGES_ENABLED && <TodaysChallengeCard />}
 
       {/* ── Next training session card ─────────────────────────── */}
       {/* Persistent reminder of the next weekly AFL training session

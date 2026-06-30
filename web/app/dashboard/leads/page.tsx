@@ -45,6 +45,8 @@ import { isUsStateCode, US_STATE_NAMES } from '../../../lib/us-states';
 import { parseLeadFile } from '../../../lib/lead-csv-parse';
 import { captureEvent } from '../../../lib/posthog';
 import { ANALYTICS_EVENTS } from '../../../lib/analytics-events';
+import ChallengeScoreboard from '../../../components/ChallengeScoreboard';
+import { CHALLENGES_ENABLED } from '../../../lib/feature-flags';
 
 interface Lead {
   id: string;
@@ -232,6 +234,9 @@ function LeadsPageInner() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<LeadView>('all');
+  // Bumped after each logged dial so the Today's Challenge Scoreboard
+  // refetches its rings in near-real-time (see ChallengeScoreboard).
+  const [dialTick, setDialTick] = useState(0);
   // IA v2 (dark-launch): admins always; everyone else when
   // NEXT_PUBLIC_IA_V2=on. Folds Call queue into a "Call mode" button here
   // and (in the dashboard sidebar) promotes Calendar + regroups nav.
@@ -1479,6 +1484,7 @@ function LeadsPageInner() {
         outcome,
         source: 'queue_inline',
       });
+      setDialTick((t) => t + 1);
       // Live snapshot picks up the new lastDialAt/lastDialOutcome
       // and the queue useMemo re-sorts on the next render. Booked /
       // not-interested / wrong-number leads drop off the queue
@@ -1615,6 +1621,13 @@ function LeadsPageInner() {
       <div className="relative">
         {/* ── List surface ── */}
         <div className={SLIDE_TRANSITION} style={listSurfaceStyle}>
+          {/* Today's Challenge Scoreboard — the bold, standout gamification
+              surface + Power Hour dial timer, right where the dialing
+              happens. Shown on the list + Call mode (not Calendar). Gated
+              on NEXT_PUBLIC_CHALLENGES_ENABLED; self-hides until loaded. */}
+          {CHALLENGES_ENABLED && view !== 'calendar' && (
+            <ChallengeScoreboard refreshSignal={dialTick} />
+          )}
           {/* Pair-phone banner — only on the main list view so Call mode /
               Calendar stay focused. Self-gates on unpaired + text channel,
               and vanishes for good once the phone is paired. */}
