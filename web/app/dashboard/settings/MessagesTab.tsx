@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect, type RefObject } from 'react';
+import { useRef, useEffect, type RefObject, type ReactNode } from 'react';
 import type { User } from 'firebase/auth';
 import type { AgentProfile } from '../DashboardContext';
 import { DEFAULT_DIAL_SCRIPT, SCRIPT_TOKEN_HINTS, SCRIPT_CONDITION_HINTS } from '../../../lib/dial-script';
@@ -14,6 +14,9 @@ interface MessagesTabProps {
   /** 'dialer' = lead outreach (intro text + dial script) for the Leads
       tab; 'messages' = templates you send + the automations. */
   view: 'messages' | 'dialer';
+  /** Best-in-class restyle (the settings-v2 preview): renders the
+      automations as a clean row list instead of stacked cards. */
+  clean?: boolean;
 }
 
 function InsertChips({
@@ -49,7 +52,55 @@ function InsertChips({
   );
 }
 
-export default function MessagesTab({ agentProfile, updateField, user, view }: MessagesTabProps) {
+function Switch({ on, onClick }: { on: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={on}
+      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${on ? 'bg-[#44bbaa]' : 'bg-gray-300'}`}
+    >
+      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow ${on ? 'translate-x-6' : 'translate-x-1'}`} />
+    </button>
+  );
+}
+
+/* One automation as a clean row: icon + title + one-line description on the
+   left, switch on the right. Rows stack in a single bordered panel with
+   hairline dividers — the best-in-class pattern for a list of toggles. */
+function ToggleRow({ icon, title, description, on, onToggle }: {
+  icon: ReactNode;
+  title: string;
+  description: string;
+  on: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-5 px-5 py-4 border-b border-[#f1f1f1] last:border-b-0">
+      <div className="flex items-start gap-3.5 min-w-0">
+        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#eef6f4] text-[#0f6e56]">{icon}</span>
+        <div className="min-w-0">
+          <p className="text-[15px] font-semibold text-[#111827]">{title}</p>
+          <p className="text-[13px] text-[#6b7280] mt-0.5 leading-snug">{description}</p>
+        </div>
+      </div>
+      <Switch on={on} onClick={onToggle} />
+    </div>
+  );
+}
+
+const ICON = 'h-[18px] w-[18px]';
+function IconSparkle() {
+  return (<svg className={ICON} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 4l1.7 4.3L18 10l-4.3 1.7L12 16l-1.7-4.3L6 10l4.3-1.7z" /><path d="M18.5 4l.5 1.4 1.4.5-1.4.5-.5 1.4-.5-1.4L16.6 6l1.4-.5z" /></svg>);
+}
+function IconEnvelope() {
+  return (<svg className={ICON} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3.5 7l8.5 6 8.5-6" /></svg>);
+}
+function IconRepeat() {
+  return (<svg className={ICON} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M17 2l4 4-4 4" /><path d="M3 11V9a4 4 0 014-4h14" /><path d="M7 22l-4-4 4-4" /><path d="M21 13v2a4 4 0 01-4 4H3" /></svg>);
+}
+
+export default function MessagesTab({ agentProfile, updateField, user, view, clean }: MessagesTabProps) {
   const introRef = useRef<HTMLTextAreaElement>(null);
   const dialRef = useRef<HTMLTextAreaElement>(null);
   const referralRef = useRef<HTMLTextAreaElement>(null);
@@ -338,6 +389,32 @@ export default function MessagesTab({ agentProfile, updateField, user, view }: M
         <p className="text-xs text-[#707070] mt-0.5">Things AFL does on its own — switch each on or off.</p>
       </div>
 
+      {clean ? (
+        <div className="bg-white rounded-xl border border-[#ededed] overflow-hidden">
+          <ToggleRow
+            icon={<IconSparkle />}
+            title="AI assistant"
+            description="Drafts your referral outreach, conservation scripts, and check-ins — automatically."
+            on={agentProfile.aiAssistantEnabled !== false}
+            onToggle={() => updateField('aiAssistantEnabled', !agentProfile.aiAssistantEnabled)}
+          />
+          <ToggleRow
+            icon={<IconEnvelope />}
+            title="Holiday cards"
+            description="Stay top of mind — branded greetings sent to every client for you."
+            on={!!agentProfile.autoHolidayCards}
+            onToggle={() => updateField('autoHolidayCards', !agentProfile.autoHolidayCards)}
+          />
+          <ToggleRow
+            icon={<IconRepeat />}
+            title="Rewrite campaigns"
+            description="AI books the 1-year review so policies don't lapse — and you catch the rewrites."
+            on={agentProfile.policyReviewAIEnabled !== false}
+            onToggle={() => updateField('policyReviewAIEnabled', !(agentProfile.policyReviewAIEnabled !== false))}
+          />
+        </div>
+      ) : (
+      <>
       {/* AI Assistant */}
       <div className="bg-white rounded-[5px] border border-gray-200 p-5">
         <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">AI Assistant</h3>
@@ -420,6 +497,8 @@ export default function MessagesTab({ agentProfile, updateField, user, view }: M
           </button>
         </div>
       </div>
+      </>
+      )}
       </>
       )}
     </div>
