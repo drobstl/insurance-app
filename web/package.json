@@ -27,6 +27,7 @@
     "purge:test-leads": "node --require ./scripts/server-only-shim.cjs --import tsx ./scripts/purge-test-leads.ts",
     "purge:test-bookings": "node --require ./scripts/server-only-shim.cjs --import tsx ./scripts/purge-test-bookings-by-name.ts",
     "audit:welcome-templates": "node --require ./scripts/server-only-shim.cjs --import tsx ./scripts/welcome-template-audit.ts",
+    "sweep:assessment-followups": "node --require ./scripts/server-only-shim.cjs --import tsx ./scripts/sweep-stray-assessment-followups.ts",
     "reset-mfa": "node --require ./scripts/server-only-shim.cjs --import tsx ./scripts/reset-mfa.ts",
     "reset-reveal-clock": "node --require ./scripts/server-only-shim.cjs --import tsx ./scripts/reset-reveal-cadence.ts",
     "test:e2e": "playwright test",
