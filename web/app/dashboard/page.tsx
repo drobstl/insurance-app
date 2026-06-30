@@ -350,6 +350,14 @@ export default function DashboardHomePage() {
       <EarlyAdopterBanner />
       <ProEndingBanner />
       <WhatsNewSpotlight />
+
+      {/* ── Today's Challenge (gamification) ───────────────────── */}
+      {/* Self-competition card: beat yesterday's dials + beat last week.
+          Compact card pinned at the top, above the value number — the
+          calmer twin of the leads Scoreboard. Gated on
+          NEXT_PUBLIC_CHALLENGES_ENABLED; self-hides until progress loads. */}
+      {CHALLENGES_ENABLED && <TodaysChallengeCard />}
+
       {/* ── Value Hero ─────────────────────────────────────────── */}
       {/* APV on the left; the compact Refer & Earn promo fills the empty
           space on the right (stacks below the number on mobile). See
@@ -363,12 +371,6 @@ export default function DashboardHomePage() {
         </div>
         <ReferEarnPromoCard />
       </div>
-
-      {/* ── Today's Challenge (gamification) ───────────────────── */}
-      {/* Self-competition card: beat yesterday's dials + beat last week.
-          Calmer twin of the leads Scoreboard. Gated on
-          NEXT_PUBLIC_CHALLENGES_ENABLED; self-hides until progress loads. */}
-      {CHALLENGES_ENABLED && <TodaysChallengeCard />}
 
       {/* ── Next training session card ─────────────────────────── */}
       {/* Persistent reminder of the next weekly AFL training session

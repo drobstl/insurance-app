@@ -25,11 +25,11 @@ export default function TodaysChallengeCard() {
 
   return (
     <div
-      className="rounded-2xl p-5 mb-8 flex items-center gap-5"
+      className="w-fit max-w-full rounded-2xl p-4 sm:p-5 mt-2 mb-6 flex items-center gap-4 sm:gap-5"
       style={{ background: C.stage, border: `1px solid ${daily.won ? C.mint : C.border}` }}
     >
       <ChallengeRing
-        size={104}
+        size={96}
         outer={{ pct: dailyPct, color: daily.won ? C.mint : C.mint }}
         inner={{ pct: weeklyPct, color: C.softTeal }}
         centerTop={String(daily.current)}
@@ -75,7 +75,7 @@ export default function TodaysChallengeCard() {
           <span className="text-[12px]" style={{ color: C.textMuted, minWidth: 62 }}>
             This week
           </span>
-          <div className="flex-1 rounded-full overflow-hidden h-2" style={{ background: C.track, minWidth: 80 }}>
+          <div className="rounded-full overflow-hidden h-2" style={{ background: C.track, width: 90 }}>
             <div
               className="h-full rounded-full"
               style={{ width: `${Math.min(100, weeklyPct * 100)}%`, background: C.softTeal }}
