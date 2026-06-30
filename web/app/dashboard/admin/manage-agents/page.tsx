@@ -10,11 +10,12 @@ interface AgentRow {
   email: string;
   clientCount: number;
   subscriptionStatus: string;
+  isAgencyOwner?: boolean;
 }
 
 export default function ManageAgentsPage() {
   const router = useRouter();
-  const { user, loading: authLoading, isAdmin } = useDashboard();
+  const { user, loading: authLoading, isAdmin, refreshProfile } = useDashboard();
 
   const [agents, setAgents] = useState<AgentRow[]>([]);
   const [fetchLoading, setFetchLoading] = useState(true);
@@ -24,7 +25,7 @@ export default function ManageAgentsPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
-  const [actionResult, setActionResult] = useState<{ agentId: string; type: 'export' | 'delete' | 'founding'; message: string } | null>(null);
+  const [actionResult, setActionResult] = useState<{ agentId: string; type: 'export' | 'delete' | 'founding' | 'agency'; message: string } | null>(null);
 
   const fetchAgents = useCallback(async () => {
     if (!user) return;
@@ -49,6 +50,7 @@ export default function ManageAgentsPage() {
           email: r.email,
           clientCount: 0,
           subscriptionStatus: '—',
+          isAgencyOwner: false,
         }));
 
       const listRes = await fetch('/api/admin/list-agents', {
@@ -167,6 +169,42 @@ export default function ManageAgentsPage() {
     }
   };
 
+  const handleToggleAgencyOwner = async (agentId: string, current: boolean) => {
+    if (!user || !agentId) return;
+    setActionLoading(agentId);
+    setActionResult(null);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/admin/set-agency-owner', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ uid: agentId, isAgencyOwner: !current }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Update failed');
+      setAgents((prev) => prev.map((a) => (a.id === agentId ? { ...a, isAgencyOwner: !current } : a)));
+      setActionResult({
+        agentId,
+        type: 'agency',
+        message: !current ? 'Agency owner enabled.' : 'Agency owner removed.',
+      });
+      // If you toggled your OWN account, refresh the live profile so the
+      // "My Team" nav appears/disappears for you without a manual reload.
+      if (agentId === user.uid) await refreshProfile();
+    } catch (e) {
+      setActionResult({
+        agentId,
+        type: 'agency',
+        message: e instanceof Error ? e.message : 'Update failed',
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const filtered = agents.filter((a) => {
     const q = search.toLowerCase();
     return a.name.toLowerCase().includes(q) || a.email.toLowerCase().includes(q);
@@ -244,6 +282,24 @@ export default function ManageAgentsPage() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
+                          {agent.id && (
+                            <button
+                              onClick={() => handleToggleAgencyOwner(agent.id, agent.isAgencyOwner === true)}
+                              disabled={actionLoading === (agent.id || agent.email)}
+                              title={agent.isAgencyOwner ? 'Remove agency-owner access' : 'Grant agency-owner access (unlocks the My Team dashboard)'}
+                              className={`inline-flex items-center gap-1.5 px-3 py-1.5 border disabled:opacity-50 text-xs font-semibold rounded-[5px] transition-colors ${
+                                agent.isAgencyOwner
+                                  ? 'bg-[#005851] border-[#005851] text-white hover:bg-[#0D4D4D]'
+                                  : 'bg-white border-[#44bbaa] text-[#005851] hover:bg-[#f0faf8]'
+                              }`}
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197" />
+                              </svg>
+                              {agent.isAgencyOwner ? 'Agency Owner ✓' : 'Make Owner'}
+                            </button>
+                          )}
+
                           <button
                             onClick={() => handleForceFounding(agent.email, agent.id || agent.email)}
                             disabled={actionLoading === (agent.id || agent.email)}
