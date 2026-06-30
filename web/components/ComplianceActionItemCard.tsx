@@ -5,6 +5,7 @@ import type { User } from 'firebase/auth';
 
 import { ANALYTICS_EVENTS } from '../lib/analytics-events';
 import { captureEvent } from '../lib/posthog';
+import { ActionItemSubjectLink } from './ActionItemSubjectLink';
 import type { ActionItemDoc } from '../lib/action-item-types';
 
 /**
@@ -158,7 +159,7 @@ export default function ComplianceActionItemCard({
         <div className="min-w-0">
           <p className="text-sm font-bold text-[#0D4D4D] flex items-center gap-1.5">
             <span aria-hidden="true">⛔</span>
-            {title}
+            <ActionItemSubjectLink clientId={item.clientId} prospectId={item.prospectId}>{title}</ActionItemSubjectLink>
           </p>
           <p className="text-[12px] text-[#4f4f4f] mt-0.5">
             {phone || 'No phone on file'} · compliance

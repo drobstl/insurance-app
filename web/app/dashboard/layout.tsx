@@ -439,6 +439,19 @@ function SubscriptionGate({ children }: { children: React.ReactNode }) {
 }
 
 const NAV_ITEMS = [
+  // Refer & Earn — agent-side affiliate program surface (May 31, 2026).
+  // Sourced from the May 30 growth + distribution lock; FirstPromoter
+  // is the underlying tracking provider (PR #58). Self-serve enrollment
+  // via /api/affiliate/create. Hidden gracefully if FIRSTPROMOTER_API_KEY
+  // / FIRSTPROMOTER_ACCOUNT_ID env vars aren't set yet — the page itself
+  // surfaces a "Coming soon" message in that case so we can ship the
+  // surface ahead of the FP key rollout. Leads the array so the flat
+  // (flag-off) rail shows it at the top, matching the grouped rail.
+  { key: 'refer-and-earn', path: '/dashboard/refer-and-earn', label: 'Refer & Earn', icon: (
+    <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
+    </svg>
+  )},
   { key: 'home', path: '/dashboard', label: 'Home', icon: (
     <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
@@ -499,18 +512,6 @@ const NAV_ITEMS = [
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
     </svg>
   )},
-  // Refer & Earn — agent-side affiliate program surface (May 31, 2026).
-  // Sourced from the May 30 growth + distribution lock; FirstPromoter
-  // is the underlying tracking provider (PR #58). Self-serve enrollment
-  // via /api/affiliate/create. Hidden gracefully if FIRSTPROMOTER_API_KEY
-  // / FIRSTPROMOTER_ACCOUNT_ID env vars aren't set yet — the page itself
-  // surfaces a "Coming soon" message in that case so we can ship the
-  // surface ahead of the FP key rollout.
-  { key: 'refer-and-earn', path: '/dashboard/refer-and-earn', label: 'Refer & Earn', icon: (
-    <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
-    </svg>
-  )},
   { key: 'feedback', path: '/dashboard/feedback', label: 'Feedback', icon: (
     <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -545,10 +546,12 @@ const COACHING_NAV_ITEM = { key: 'coaching', path: '/dashboard/coaching', label:
 // gating (leads / activity / coaching accessibility) still applies.
 // Resources + Feedback intentionally live in the avatar menu, not here.
 const NAV_GROUPS: Array<{ label?: string; keys: string[] }> = [
+  // Refer & Earn leads the rail — it's the one nav item where the agent
+  // EARNS money, so it sits at the very top, above the daily-tool groups.
+  { keys: ['refer-and-earn'] },
   { label: 'Workspace', keys: ['home', 'leads', 'calendar', 'action-items'] },
   { label: 'Book', keys: ['clients', 'conservation', 'policy-reviews', 'referrals'] },
   { label: 'Performance', keys: ['activity', 'coaching'] },
-  { keys: ['refer-and-earn'] },
 ];
 const NAV_ITEM_BY_KEY = Object.fromEntries(
   NAV_ITEMS.map((item) => [item.key, item] as [string, (typeof NAV_ITEMS)[number]]),
@@ -813,31 +816,40 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     // Refer & Earn gets a permanent gold accent — it's the one nav item
     // where the agent can EARN money, so it stands out from daily tools.
     const isReferEarn = item.key === 'refer-and-earn';
+    const isActive = activeKey === item.key;
     return (
       <button
         key={item.key}
         data-onboarding-target={item.key === 'clients' ? 'nav-clients' : undefined}
         onClick={() => router.push(item.path)}
         className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 group relative ${
-          activeKey === item.key
-            ? 'bg-[#daf3f0] text-[#005851]'
-            : isReferEarn
-              ? 'text-[#f5c542] hover:bg-[#f5c542]/10 hover:text-[#ffd860]'
+          isReferEarn
+            // Balanced gold: a crisp gold outline + bright gold text reads as
+            // distinct without a heavy fill. The loud solid-gold pill is
+            // reserved for when you're actually on the page (active), matching
+            // how the other items fill when active.
+            ? isActive
+              ? 'bg-[#f5c542] text-[#0D4D4D]'
+              : 'bg-[#f5c542]/10 ring-1 ring-inset ring-[#f5c542] text-[#f5c542] hover:bg-[#f5c542]/20'
+            : isActive
+              ? 'bg-[#daf3f0] text-[#005851]'
               : 'text-white/80 hover:bg-white/10 hover:text-white'
         }`}
       >
         <div className="relative shrink-0">
           {item.icon}
         </div>
-        <span className="whitespace-nowrap overflow-hidden text-sm font-semibold opacity-100 w-auto">
+        <span className={`whitespace-nowrap overflow-hidden text-sm opacity-100 w-auto ${isReferEarn ? 'font-bold' : 'font-semibold'}`}>
           {item.label}
         </span>
-        {isReferEarn && activeKey !== item.key && (
+        {isReferEarn && (
           <span
             aria-hidden="true"
-            className="ml-auto text-[10px] font-bold text-[#f5c542]/90 tracking-widest"
+            className={`ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-extrabold tracking-wide ${
+              isActive ? 'bg-[#0D4D4D] text-[#f5c542]' : 'bg-[#f5c542] text-[#0D4D4D]'
+            }`}
           >
-            $
+            EARN
           </span>
         )}
       </button>
@@ -1091,6 +1103,30 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                 </div>
               </div>
             </>
+          )}
+
+          {/* Help & Resources — IA-v2 trimmed Resources out of the workflow
+              groups (it lives in the avatar menu), but help/getting-started
+              content needs a persistent, obvious anchor or new agents never
+              find it. Pin it quietly at the bottom of the rail, just above
+              Settings. Only in IA-v2 mode; the flat sidebar already lists
+              Resources via NAV_ITEMS, so this would double it there. */}
+          {iaEnabled && (
+            <button
+              onClick={() => router.push('/dashboard/resources')}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 ${
+                activeKey === 'resources'
+                  ? 'bg-[#daf3f0] text-[#005851]'
+                  : 'text-white/80 hover:bg-white/10 hover:text-white'
+              }`}
+            >
+              <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+              </svg>
+              <span className="whitespace-nowrap overflow-hidden text-sm font-semibold opacity-100 w-auto">
+                Help &amp; Resources
+              </span>
+            </button>
           )}
 
           <button

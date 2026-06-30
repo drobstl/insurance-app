@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import LeadDetailPanel from '../../../../components/LeadDetailPanel';
-import { CloseSaleRitual } from '../../../../components/CloseSaleRitual';
+import { CloseSaleRitual, type CloseSaleLead } from '../../../../components/CloseSaleRitual';
 import { useDashboard } from '../../DashboardContext';
 import { leadsAccessReason } from '../../../../lib/tier-gating';
 import UpgradeToProCard from '../../../../components/UpgradeToProCard';
@@ -17,18 +17,16 @@ export default function LeadDetailPage() {
   // on macOS. The panel auto-opens the send-confirmation drawer for
   // this appointment and strips the param from the URL.
   const openConfirmationParam = searchParams?.get('openConfirmation') ?? null;
+  // Deep-link from the intro-text QR hand-off — auto-opens the intro
+  // drawer on the phone so the agent sends from their own number.
+  const openIntroParam = searchParams?.get('openIntro') === '1';
 
   const { user, agentProfile, profileLoading } = useDashboard();
 
   // Close Sale slide state — see queue page for the same pattern.
   // LeadDetailPanel slides left out of view; Close Sale slides in
   // from the right. Matches the Add Client flow on /dashboard/clients.
-  const [closeSaleLead, setCloseSaleLead] = useState<{
-    id: string;
-    name: string;
-    firstName: string;
-    phone: string;
-  } | null>(null);
+  const [closeSaleLead, setCloseSaleLead] = useState<CloseSaleLead | null>(null);
   const navigateAfterCloseSale = useRef(false);
 
   // Feature flag + tier gate — see web/app/dashboard/leads/page.tsx
@@ -78,6 +76,7 @@ export default function LeadDetailPage() {
             key={leadId}
             leadId={leadId}
             initialOpenConfirmationApptId={openConfirmationParam}
+            initialOpenIntro={openIntroParam}
             onConverted={() => router.push('/dashboard/clients')}
             onDeleted={() => router.push('/dashboard/leads')}
             onRequestCloseSale={(leadSnapshot) => {

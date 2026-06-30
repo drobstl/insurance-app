@@ -16,8 +16,10 @@ import { db } from '../../../firebase';
 import { useDashboard } from '../DashboardContext';
 import AppointmentPicker from '../../../components/AppointmentPicker';
 import SendConfirmationDrawer from '../../../components/SendConfirmationDrawer';
+import LeadsPairPhoneBanner from '../../../components/LeadsPairPhoneBanner';
+import FirstBookingPairCelebration from '../../../components/FirstBookingPairCelebration';
 import LeadDetailPanel from '../../../components/LeadDetailPanel';
-import { CloseSaleRitual } from '../../../components/CloseSaleRitual';
+import { CloseSaleRitual, type CloseSaleLead } from '../../../components/CloseSaleRitual';
 import LeadsCalendar from '../../../components/LeadsCalendar';
 import { leadsAccessReason } from '../../../lib/tier-gating';
 import UpgradeToProCard from '../../../components/UpgradeToProCard';
@@ -29,6 +31,14 @@ import {
 } from '../../../lib/appointment-outcome-chip';
 import type { LeadScore } from '../../../lib/lead-assessment';
 import { LeadTempChip } from '../../../components/LeadTempChip';
+import { LeadTagChips } from '../../../components/LeadTagChips';
+import { LeadFilterBar } from '../../../components/LeadFilterBar';
+import SavedLeadsBar from '../../../components/SavedLeadsBar';
+import { type LeadFilters, EMPTY_LEAD_FILTERS, hasActiveFilters, coerceLeadFilters } from '../../../lib/lead-filters';
+import { type SavedLeadSegment } from '../../../lib/lead-segment';
+import { resolveLeadTags } from '../../../lib/lead-tag';
+import { isFollowUpDue, followUpMillis, followUpChip } from '../../../lib/lead-follow-up';
+import { isUsStateCode, US_STATE_NAMES } from '../../../lib/us-states';
 import { parseLeadFile } from '../../../lib/lead-csv-parse';
 import { captureEvent } from '../../../lib/posthog';
 import { ANALYTICS_EVENTS } from '../../../lib/analytics-events';
@@ -45,6 +55,8 @@ interface Lead {
   // detail page handles those.
   address?: { street?: string; city?: string; state?: string; zip?: string };
   email?: string;
+  // Lead's age in years, populated by the PDF extractor on import. Sortable.
+  ageYears?: number;
   createdAt?: Timestamp | null;
   appDownloadedAt?: string | null;
   assessmentCompletedAt?: Timestamp | null;
@@ -52,6 +64,9 @@ interface Lead {
   convertedToClientId?: string | null;
   monthlyMortgageAmount?: number;
   notes?: string;
+  tagIds?: string[];
+  notesEntries?: Array<{ text?: string }>;
+  followUpAt?: Timestamp | null;
   // Dial-tracking fields (Chunk 4b). Denormalized at write time so
   // queue queries / sorting don't require reading dialLog[].
   lastDialAt?: Timestamp | null;
@@ -66,7 +81,7 @@ interface Lead {
 }
 
 type LeadView = 'all' | 'queue' | 'calendar';
-type LeadSortKey = 'name' | 'createdAt' | 'source' | 'priority';
+type LeadSortKey = 'name' | 'createdAt' | 'source' | 'priority' | 'state' | 'temperature' | 'lastContacted' | 'followUpAt' | 'ageYears' | 'appDownloadedAt' | 'assessmentCompletedAt';
 type SortDir = 'asc' | 'desc';
 
 // Multi-page lead-form bundles route to the off-Vercel batch engine
@@ -195,7 +210,7 @@ export default function LeadsPage() {
 function LeadsPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, agentProfile, isAdmin } = useDashboard();
+  const { user, agentProfile, isAdmin, saveLeadSegment, deleteLeadSegment } = useDashboard();
 
   // Right-pane selection (desktop call-queue view only). The URL param
   // is the source of truth so refresh + back/forward + shareable links
@@ -229,6 +244,19 @@ function LeadsPageInner() {
     router.replace(qs ? `/dashboard/leads?${qs}` : '/dashboard/leads', { scroll: false });
   }, [searchParams, router]);
 
+  // Deep link: /dashboard/leads?view=calendar reopens the Calendar tab —
+  // used when returning from the Google Calendar OAuth round-trip that was
+  // started on that tab. Consume `view` but leave any `google_calendar`
+  // result param for LeadsCalendar to surface once it mounts.
+  useEffect(() => {
+    if (searchParams?.get('view') !== 'calendar') return;
+    setView('calendar');
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('view');
+    const qs = params.toString();
+    router.replace(qs ? `/dashboard/leads?${qs}` : '/dashboard/leads', { scroll: false });
+  }, [searchParams, router]);
+
   // ── Search + sort (All view only) ──
   // Queue has its own priority sort that we don't override. Search +
   // explicit sort are All-leads concerns — agent scanning the full
@@ -236,6 +264,7 @@ function LeadsPageInner() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortKey, setSortKey] = useState<LeadSortKey>('createdAt');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [filters, setFilters] = useState<LeadFilters>(EMPTY_LEAD_FILTERS);
 
   // Add-Lead flow ── replaces the centered modal with a horizontal
   // slide. addFlowOpen=true → list slides out left, form slides in
@@ -281,11 +310,6 @@ function LeadsPageInner() {
   // data they're uploading before any bulk import runs. Reinforces the "your
   // book / your data" posture and the rights representation (see /trust).
   const [importConsent, setImportConsent] = useState(false);
-  // CSV-only "refresh" mode: when re-importing a spreadsheet, update leads we
-  // already have (matched by phone) in place instead of skipping them — keeps
-  // each lead's id, appointments, and dial history (no delete+recreate).
-  // Ignored by the PDF path.
-  const [csvUpdateExisting, setCsvUpdateExisting] = useState(false);
   // Hold-the-file: if a file is dropped/picked before consent is given, we
   // stash it here instead of throwing it away. Ticking the consent box then
   // auto-starts this file, so the agent never has to re-select after
@@ -796,7 +820,10 @@ function LeadsPageInner() {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ rows: chunk, updateExisting: csvUpdateExisting }),
+          // A phone match on re-import refreshes the existing lead in place
+          // (keeping its appointments + history) when the names confirm it's
+          // the same person — handled server-side, no flag needed.
+          body: JSON.stringify({ rows: chunk }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
@@ -825,7 +852,7 @@ function LeadsPageInner() {
     } finally {
       setUploading(false);
     }
-  }, [user, csvUpdateExisting]);
+  }, [user]);
 
   // Dispatch a dropped/selected file to the PDF extractor or the CSV/Excel
   // importer based on type.
@@ -892,28 +919,94 @@ function LeadsPageInner() {
   //   2. Never dialed, newer first (fresh leads outrank stale ones).
   //   3. Dialed, oldest-last-call first. No per-outcome weighting —
   //      the agent cycles through and comes back around naturally.
+  // Distinct USPS states present in the loaded leads — powers the State
+  // filter dropdown. Recomputed only when the lead set changes.
+  const availableStates = useMemo<string[]>(() => {
+    const set = new Set<string>();
+    for (const lead of leads) {
+      const s = lead.address?.state?.trim().toUpperCase();
+      if (s) set.add(s);
+    }
+    return [...set].sort();
+  }, [leads]);
+
   // ── Filtered + sorted All-leads view ──
-  // Search matches against name / phone / leadCode / formType / state /
-  // city (case-insensitive substring). Sort key cycles through
-  // name / createdAt / state / source with asc/desc toggle per the
-  // SortIcon helper below.
+  // Filters (status / tag / state / date) → search → sort, all client-side
+  // over the already-loaded leads (no Firestore index). Status no-show /
+  // booked / thinking / no-sale read from the same nextApptByLead /
+  // pastOutcomeByLead maps the row chips use. Search covers name / phone /
+  // code / form / email / state / city / notes / tag labels.
   const filteredLeads = useMemo<Lead[]>(() => {
     let result = leads;
-    const q = searchQuery.trim().toLowerCase();
-    if (q) {
+    const tempRank = (t?: string | null) => (t === 'hot' ? 3 : t === 'warm' ? 2 : t === 'cool' ? 1 : 0);
+
+    if (filters.statuses.length) {
       result = result.filter((lead) => {
-        const fields = [
+        const past = pastOutcomeByLead.get(lead.id)?.status;
+        const booked = nextApptByLead.has(lead.id);
+        return filters.statuses.some((s) => {
+          switch (s) {
+            case 'converted': return !!lead.convertedToClientId;
+            case 'booked': return booked;
+            case 'no_show': return past === 'no_show';
+            case 'thinking': return past === 'sit_think_about_it';
+            case 'no_sale': return past === 'sit_no_sale';
+            case 'callback': return lead.lastDialOutcome === 'callback_requested';
+            case 'not_interested': return lead.lastDialOutcome === 'not_interested';
+            case 'new': return !lead.lastDialAt && !booked && !past && !lead.convertedToClientId;
+            default: return false;
+          }
+        });
+      });
+    }
+    if (filters.tagIds.length) {
+      result = result.filter((lead) => filters.tagIds.every((id) => (lead.tagIds ?? []).includes(id)));
+    }
+    if (filters.state) {
+      result = result.filter((lead) => (lead.address?.state ?? '').toUpperCase() === filters.state);
+    }
+    if (filters.dateFrom || filters.dateTo) {
+      const fromMs = filters.dateFrom ? Date.parse(`${filters.dateFrom}T00:00:00`) : -Infinity;
+      const toMs = filters.dateTo ? Date.parse(`${filters.dateTo}T23:59:59`) : Infinity;
+      result = result.filter((lead) => {
+        const t = lead.createdAt?.toDate().getTime();
+        return t != null && t >= fromMs && t <= toMs;
+      });
+    }
+    if (filters.followUpDue) {
+      result = result.filter((lead) => isFollowUpDue(lead.followUpAt));
+    }
+
+    // Multi-word AND: every whitespace-separated term must match SOME field
+    // (so "texas hot" = leads in TX that are also hot). The 2-letter state
+    // code is expanded to its full name (TX → "Texas") so a typed-out state
+    // matches, and temperature ('hot'/'warm'/'cool') is searchable.
+    const terms = searchQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (terms.length) {
+      const tagDefs = agentProfile.leadTags ?? [];
+      result = result.filter((lead) => {
+        const stateCode = (lead.address?.state ?? '').toUpperCase();
+        const stateName = isUsStateCode(stateCode) ? US_STATE_NAMES[stateCode] : '';
+        const haystack = [
           lead.name,
           lead.phone,
           lead.leadCode,
           lead.formType,
           lead.email,
           lead.address?.state,
+          stateName,
           lead.address?.city,
-        ];
-        return fields.some((f) => typeof f === 'string' && f.toLowerCase().includes(q));
+          lead.notes,
+          lead.leadScore?.temperature,
+          ...(lead.notesEntries ?? []).map((e) => e.text),
+          ...resolveLeadTags(lead.tagIds, tagDefs).map((t) => t.label),
+        ]
+          .filter((f): f is string => typeof f === 'string')
+          .map((f) => f.toLowerCase());
+        return terms.every((term) => haystack.some((f) => f.includes(term)));
       });
     }
+
     result = [...result].sort((a, b) => {
       let cmp = 0;
       if (sortKey === 'name') {
@@ -924,11 +1017,35 @@ function LeadsPageInner() {
         cmp = aT - bT;
       } else if (sortKey === 'source') {
         cmp = (a.formType || '').localeCompare(b.formType || '');
+      } else if (sortKey === 'state') {
+        cmp = (a.address?.state || '').localeCompare(b.address?.state || '');
+      } else if (sortKey === 'temperature') {
+        cmp = tempRank(a.leadScore?.temperature) - tempRank(b.leadScore?.temperature);
+      } else if (sortKey === 'lastContacted') {
+        const aT = a.lastDialAt?.toDate().getTime() ?? 0;
+        const bT = b.lastDialAt?.toDate().getTime() ?? 0;
+        cmp = aT - bT;
+      } else if (sortKey === 'followUpAt') {
+        const aT = followUpMillis(a.followUpAt) ?? Number.POSITIVE_INFINITY;
+        const bT = followUpMillis(b.followUpAt) ?? Number.POSITIVE_INFINITY;
+        cmp = aT - bT;
+      } else if (sortKey === 'ageYears') {
+        const aA = a.ageYears ?? Number.NEGATIVE_INFINITY;
+        const bA = b.ageYears ?? Number.NEGATIVE_INFINITY;
+        cmp = aA - bA;
+      } else if (sortKey === 'appDownloadedAt') {
+        const aT = a.appDownloadedAt ? Date.parse(a.appDownloadedAt) : 0;
+        const bT = b.appDownloadedAt ? Date.parse(b.appDownloadedAt) : 0;
+        cmp = aT - bT;
+      } else if (sortKey === 'assessmentCompletedAt') {
+        const aT = a.assessmentCompletedAt?.toDate().getTime() ?? 0;
+        const bT = b.assessmentCompletedAt?.toDate().getTime() ?? 0;
+        cmp = aT - bT;
       }
       return sortDir === 'asc' ? cmp : -cmp;
     });
     return result;
-  }, [leads, searchQuery, sortKey, sortDir]);
+  }, [leads, filters, searchQuery, sortKey, sortDir, nextApptByLead, pastOutcomeByLead, agentProfile.leadTags]);
 
   const handleSort = useCallback((key: LeadSortKey) => {
     setSortKey((prev) => {
@@ -942,6 +1059,30 @@ function LeadsPageInner() {
       return key;
     });
   }, []);
+
+  // ── Saved lists ("segments") ──
+  // Apply re-applies a saved snapshot to the All-leads view in one shot.
+  // coerceLeadFilters defends against a stale/malformed stored filter.
+  const applySegment = useCallback((seg: SavedLeadSegment) => {
+    setFilters(coerceLeadFilters(seg.filters));
+    setSearchQuery(seg.searchQuery);
+    setSortKey(seg.sortKey as LeadSortKey);
+    setSortDir(seg.sortDir);
+  }, []);
+
+  const handleSaveSegment = useCallback(
+    (name: string) =>
+      saveLeadSegment({ name, filters, searchQuery, sortKey, sortDir }),
+    [saveLeadSegment, filters, searchQuery, sortKey, sortDir],
+  );
+
+  // Worth saving only when the view differs from the default (some search,
+  // some active filter, or a non-default sort — but not the Call-next preview).
+  const canSaveSegment =
+    !!searchQuery.trim() ||
+    hasActiveFilters(filters) ||
+    (sortKey !== 'createdAt' && sortKey !== 'priority') ||
+    (sortKey === 'createdAt' && sortDir !== 'desc');
 
   // Per-lead dial-session counter. Drives the dial-persistence setting
   // (1/2/3 attempts before auto-advance). Incremented every time the
@@ -962,10 +1103,19 @@ function LeadsPageInner() {
   const queueLeads = useMemo<Lead[]>(() => {
     const persistence = agentProfile.dialPersistence ?? 1;
 
+    // Scope the dial queue to the agent's current filtered list (search +
+    // filters + applied saved list). When nothing is filtered, filteredLeads
+    // is the whole book, so this set contains every lead and the intersection
+    // is a no-op — the queue only narrows when a list/filter is active. The
+    // queue keeps its OWN call-order (never-dialed → oldest-call) over that
+    // subset; the segment's sort only orders the All-leads view, not dialing.
+    const inScope = new Set(filteredLeads.map((l) => l.id));
+
     type Scored = { lead: Lead; score: number };
     const scored: Scored[] = [];
 
     for (const lead of leads) {
+      if (!inScope.has(lead.id)) continue;
       if (lead.convertedToClientId) continue;
       const out = lead.lastDialOutcome;
       // Keep worked-but-unresolved leads callable: if the lead's most recent
@@ -1013,7 +1163,11 @@ function LeadsPageInner() {
     return scored
       .sort((a, b) => b.score - a.score)
       .map(({ lead }) => lead);
-  }, [leads, agentProfile.dialPersistence, pastOutcomeByLead, nextApptByLead]);
+  }, [leads, filteredLeads, agentProfile.dialPersistence, pastOutcomeByLead, nextApptByLead]);
+
+  // True when an active search/filter/saved-list is scoping the dial queue to
+  // a subset of the book (drives the "calling your filtered list" indicator).
+  const queueScoped = hasActiveFilters(filters) || !!searchQuery.trim();
 
   // "Call next" sort for the All list reuses the exact queue priority
   // order, so the list previews who Start-calling will dial first.
@@ -1167,6 +1321,34 @@ function LeadsPageInner() {
   // agent can fire the SMS while the lead is still on the line.
   const [bookingForLead, setBookingForLead] = useState<Lead | null>(null);
   const [confirmingLead, setConfirmingLead] = useState<{ lead: Lead; appointmentId: string; scheduledAt: Date } | null>(null);
+  // First-booking pairing celebration: a one-time joyful nudge shown after an
+  // unpaired agent books a sit-down. We capture the lead's first name when the
+  // booking lands (confirmingLead goes non-null) but only REVEAL it once the
+  // confirmation drawer closes, so the celebration never stacks on the drawer.
+  // Gated to unpaired + text-channel agents, once per agent (per-uid flag).
+  const [pairCelebrationName, setPairCelebrationName] = useState<string | null>(null);
+  const pendingPairCelebrationRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!confirmingLead || !user) return;
+    if (agentProfile.phonePaired || agentProfile.confirmationChannel === 'email') return;
+    if (typeof window === 'undefined') return;
+    if (window.localStorage.getItem(`pair-celebration-shown-${user.uid}`) === 'true') return;
+    pendingPairCelebrationRef.current =
+      (confirmingLead.lead.name || '').trim().split(/\s+/)[0] || 'your lead';
+  }, [confirmingLead, user, agentProfile.phonePaired, agentProfile.confirmationChannel]);
+
+  // Reveal the celebration (if one is pending) after the drawer closes, and
+  // stamp the per-agent flag so it only ever fires once.
+  const revealPairCelebration = useCallback(() => {
+    const name = pendingPairCelebrationRef.current;
+    if (!name) return;
+    pendingPairCelebrationRef.current = null;
+    if (user && typeof window !== 'undefined') {
+      window.localStorage.setItem(`pair-celebration-shown-${user.uid}`, 'true');
+    }
+    setPairCelebrationName(name);
+  }, [user]);
   // Close Sale ritual state — modal hosted at the page level so it
   // survives the LeadDetailPanel re-mount that Card 1's convert
   // triggers (snapshot drops the converted lead from queueLeads →
@@ -1176,12 +1358,7 @@ function LeadsPageInner() {
   // converted so onClose can fire the queue advance only when the
   // agent finished a real conversion (vs. closed the modal having
   // done nothing).
-  const [closeSaleLead, setCloseSaleLead] = useState<{
-    id: string;
-    name: string;
-    firstName: string;
-    phone: string;
-  } | null>(null);
+  const [closeSaleLead, setCloseSaleLead] = useState<CloseSaleLead | null>(null);
   const advanceAfterCloseSale = useRef(false);
 
   // `outcome` is the literal union (not string) so the funnel event
@@ -1360,6 +1537,10 @@ function LeadsPageInner() {
       <div className="relative">
         {/* ── List surface ── */}
         <div className={SLIDE_TRANSITION} style={listSurfaceStyle}>
+          {/* Pair-phone banner — only on the main list view so Call mode /
+              Calendar stay focused. Self-gates on unpaired + text channel,
+              and vanishes for good once the phone is paired. */}
+          {view === 'all' && <LeadsPairPhoneBanner />}
           {/* Action bar */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4">
             <div className="flex items-center gap-2">
@@ -1398,6 +1579,26 @@ function LeadsPageInner() {
                 </svg>
                 {uploading ? 'Reading…' : 'Upload Leads'}
               </label>
+              {/* Pinned pairing door — always present (survives the banner's
+                  dismissal) until the phone is paired; hidden for agents who
+                  send confirmations by email and don't need a phone. The soft
+                  pulse-dot draws the eye without shouting. */}
+              {!agentProfile.phonePaired && agentProfile.confirmationChannel !== 'email' && (
+                <button
+                  type="button"
+                  onClick={() => router.push('/dashboard/pair-phone')}
+                  title={agentProfile.pushRevoked
+                    ? 'Your phone dropped off — reconnect to get booking alerts back'
+                    : 'Set up your phone to send booking confirmations in two taps'}
+                  className="relative px-4 py-2.5 bg-white text-[#0D4D4D] font-semibold rounded-lg border-2 border-[#0D4D4D] border-r-[3px] border-b-[3px] transition-colors hover:bg-[#f4f9f9] flex items-center gap-2 text-sm"
+                >
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[#3DD6C3] animate-pulse" />
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                  {agentProfile.pushRevoked ? 'Reconnect phone' : 'Set up phone'}
+                </button>
+              )}
             </div>
           </div>
 
@@ -1426,6 +1627,14 @@ function LeadsPageInner() {
                   <span className="text-sm font-semibold text-[#005851]">
                     Calling · <span className="text-[#44bbaa]">{queueLeads.length}</span> in queue
                   </span>
+                  {queueScoped && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#daf3f0] text-[#005851] text-xs font-semibold border border-[#44bbaa]">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L14 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 018 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+                      </svg>
+                      your filtered list
+                    </span>
+                  )}
                 </>
               ) : view === 'calendar' ? (
                 <button
@@ -1507,6 +1716,7 @@ function LeadsPageInner() {
                         captureEvent(ANALYTICS_EVENTS.CALL_MODE_STARTED, {
                           entry: 'start_calling',
                           queue_count: queueLeads.length,
+                          scoped: queueScoped,
                         });
                         setView('queue');
                       }}
@@ -1536,7 +1746,7 @@ function LeadsPageInner() {
               >
                 All leads
                 <span className={`text-xs font-normal ${view === 'all' ? 'text-white/80' : 'text-[#9CA3AF]'}`}>
-                  {view === 'all' && searchQuery.trim() ? `${filteredLeads.length} / ${leads.length}` : leads.length}
+                  {view === 'all' && (searchQuery.trim() || hasActiveFilters(filters)) ? `${filteredLeads.length} / ${leads.length}` : leads.length}
                 </span>
               </button>
               <button
@@ -1546,6 +1756,7 @@ function LeadsPageInner() {
                     captureEvent(ANALYTICS_EVENTS.CALL_MODE_STARTED, {
                       entry: 'call_queue_tab',
                       queue_count: queueLeads.length,
+                      scoped: queueScoped,
                     });
                   }
                   setView('queue');
@@ -1599,6 +1810,56 @@ function LeadsPageInner() {
                     </svg>
                   </button>
                 )}
+              </div>
+            )}
+            {view === 'all' && (
+              <div className="flex items-center gap-x-4 gap-y-2 flex-wrap">
+                <LeadFilterBar
+                  filters={filters}
+                  onChange={setFilters}
+                  tags={agentProfile.leadTags ?? []}
+                  availableStates={availableStates}
+                />
+                <div className="flex items-center gap-1.5 text-xs mb-2">
+                  <span className="font-semibold uppercase tracking-wider text-[#9CA3AF]">Sort</span>
+                  <select
+                    value={sortKey === 'priority' ? 'createdAt' : sortKey}
+                    onChange={(e) => {
+                      const k = e.target.value as LeadSortKey;
+                      setSortKey(k);
+                      setSortDir(k === 'name' || k === 'source' || k === 'state' || k === 'followUpAt' ? 'asc' : 'desc');
+                    }}
+                    className="px-2 py-1 border border-[#d0d0d0] rounded-[5px] bg-white"
+                  >
+                    <option value="createdAt">Date added</option>
+                    <option value="name">Name</option>
+                    <option value="source">Source</option>
+                    <option value="state">State</option>
+                    <option value="temperature">Temperature</option>
+                    <option value="lastContacted">Last contacted</option>
+                    <option value="followUpAt">Follow-up date</option>
+                    <option value="ageYears">Lead age</option>
+                    <option value="appDownloadedAt">App downloaded</option>
+                    <option value="assessmentCompletedAt">Assessment completed</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+                    className="px-2 py-1 border border-[#d0d0d0] rounded-[5px] bg-white"
+                    aria-label="Toggle sort direction"
+                    title={sortDir === 'asc' ? 'Ascending' : 'Descending'}
+                  >
+                    {sortDir === 'asc' ? '↑' : '↓'}
+                  </button>
+                </div>
+                <SavedLeadsBar
+                  segments={agentProfile.savedLeadSegments ?? []}
+                  current={{ filters, searchQuery, sortKey, sortDir }}
+                  canSave={canSaveSegment}
+                  onApply={applySegment}
+                  onSave={handleSaveSegment}
+                  onDelete={deleteLeadSegment}
+                />
               </div>
             )}
           </div>
@@ -1677,18 +1938,6 @@ function LeadsPageInner() {
                 ) : (
                   'I confirm I have the right to upload and use this data.'
                 )}
-              </span>
-            </label>
-            <label className="mt-2 flex items-start gap-2 text-xs cursor-pointer select-none text-[#005851]">
-              <input
-                type="checkbox"
-                checked={csvUpdateExisting}
-                onChange={(e) => setCsvUpdateExisting(e.target.checked)}
-                className="mt-0.5 h-4 w-4 shrink-0 accent-[#005851]"
-              />
-              <span>
-                Re-importing a spreadsheet? Update leads I already have (matched by phone)
-                instead of skipping them — keeps their appointments and call history.
               </span>
             </label>
             {uploadError && (
@@ -2263,6 +2512,13 @@ function LeadsPageInner() {
                             {lead.leadScore && (
                               <LeadTempChip temperature={lead.leadScore.temperature} />
                             )}
+                            <LeadTagChips tagIds={lead.tagIds} tags={agentProfile.leadTags ?? []} />
+                            {(() => {
+                              const fu = followUpChip(lead.followUpAt);
+                              return fu ? (
+                                <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold tracking-wide rounded ${fu.classes}`}>{fu.label}</span>
+                              ) : null;
+                            })()}
                           </div>
                         </td>
                         <td className="px-5 py-3.5 text-sm text-[#444] whitespace-nowrap">{lead.phone}</td>
@@ -2427,8 +2683,17 @@ function LeadsPageInner() {
             agentBusinessCardBase64={agentProfile.businessCardBase64}
             licenses={agentProfile.licenses || {}}
             attachmentsSent={confirmingLead.lead.attachmentsSent}
-            onSent={() => setConfirmingLead(null)}
-            onCancel={() => setConfirmingLead(null)}
+            onSent={() => { setConfirmingLead(null); revealPairCelebration(); }}
+            onCancel={() => { setConfirmingLead(null); revealPairCelebration(); }}
+          />
+        )}
+
+        {/* First-booking pairing celebration — revealed once the confirmation
+            drawer closes, for an unpaired agent who just booked a sit-down. */}
+        {pairCelebrationName && (
+          <FirstBookingPairCelebration
+            firstName={pairCelebrationName}
+            onClose={() => setPairCelebrationName(null)}
           />
         )}
 

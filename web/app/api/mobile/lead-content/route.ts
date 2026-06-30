@@ -59,6 +59,10 @@ export async function GET(req: NextRequest) {
       caseStudies?: Array<{ id: string; title?: string; url?: string; durationSec?: number }>;
       assessment?: AssessmentQuestion[];
     } = {};
+    // Per-section visibility (top-level on the agent doc, not under
+    // leadContent). undefined = "show only if real videos exist".
+    let showFaqs: boolean | undefined;
+    let showCaseStudies: boolean | undefined;
 
     if (agentId) {
       const db = getAdminFirestore();
@@ -67,16 +71,29 @@ export async function GET(req: NextRequest) {
       if (data?.leadContent && typeof data.leadContent === 'object') {
         agentOverrides = data.leadContent as typeof agentOverrides;
       }
+      if (typeof data?.showLeadFaqs === 'boolean') showFaqs = data.showLeadFaqs;
+      if (typeof data?.showLeadCaseStudies === 'boolean') showCaseStudies = data.showLeadCaseStudies;
     }
+
+    // Resolve a section to the array the lead-home should render. The mobile
+    // app hides a section entirely when its array is empty, so returning []
+    // suppresses it. Rule: explicit false → hidden; real uploads → show them;
+    // explicit true (no uploads) → platform defaults; undefined (no uploads)
+    // → hidden (no "Coming soon" placeholders for day-1 agents).
+    const resolveSection = <T,>(
+      show: boolean | undefined,
+      uploads: T[] | undefined,
+      defaults: T[],
+    ): T[] => {
+      if (show === false) return [];
+      if (uploads && uploads.length > 0) return uploads;
+      return show === true ? defaults : [];
+    };
 
     return NextResponse.json({
       mainVideo: { ...PLATFORM_DEFAULTS.intro, ...(agentOverrides.intro || {}) },
-      faqs: (agentOverrides.faqs && agentOverrides.faqs.length > 0)
-        ? agentOverrides.faqs
-        : PLATFORM_DEFAULTS.faqs,
-      caseStudies: (agentOverrides.caseStudies && agentOverrides.caseStudies.length > 0)
-        ? agentOverrides.caseStudies
-        : PLATFORM_DEFAULTS.caseStudies,
+      faqs: resolveSection(showFaqs, agentOverrides.faqs, PLATFORM_DEFAULTS.faqs),
+      caseStudies: resolveSection(showCaseStudies, agentOverrides.caseStudies, PLATFORM_DEFAULTS.caseStudies),
       // Strip scoring metadata (dimension/points) — the lead's app only needs
       // prompts + choice labels; scoring stays server-side.
       assessment: (agentOverrides.assessment || DEFAULT_ASSESSMENT).map((q) => ({

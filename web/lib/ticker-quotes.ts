@@ -82,6 +82,7 @@ const POPULARLY_ATTRIBUTED_QUOTES: TickerQuote[] = [
   { text: "We make a living by what we get, but we make a life by what we give.", author: "Winston Churchill" },
   { text: "Whether you think you can, or you think you can't — you're right.", author: "Henry Ford" },
   { text: "It does not matter how slowly you go, as long as you do not stop.", author: "Confucius" },
+  { text: "The chains of habit are too weak to be felt until they are too strong to be broken.", author: "Samuel Johnson" },
 ];
 
 const TICKER_QUOTES: TickerQuote[] = [

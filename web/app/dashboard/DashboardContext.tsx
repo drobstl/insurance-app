@@ -4,6 +4,21 @@ import { createContext, useContext, useEffect, useRef, useState, useCallback, ty
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { doc, getDoc, onSnapshot, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+import {
+  type LeadTag,
+  type LeadTagColor,
+  parseLeadTags,
+  newLeadTagId,
+  normalizeTagLabel,
+  MAX_LEAD_TAGS,
+} from '../../lib/lead-tag';
+import {
+  type SavedLeadSegment,
+  parseLeadSegments,
+  newLeadSegmentId,
+  normalizeSegmentName,
+  MAX_LEAD_SEGMENTS,
+} from '../../lib/lead-segment';
 import { auth, db } from '../../firebase';
 import { isAdminEmail } from '../../lib/admin';
 import { identifyAgent, resetPostHog, captureEvent } from '../../lib/posthog';
@@ -117,6 +132,14 @@ export interface AgentProfile {
   npn?: string;
   agencyLogoBase64?: string;
   businessCardBase64?: string;
+  /** Family photo shown on the Rapport credibility slide of the lead presentation. */
+  familyPhotoBase64?: string;
+  /**
+   * Optional custom "A-rated carriers" strip image (base64) for the
+   * presentation's Rapport slide. Unset → the bundled default strip
+   * (web/public/carriers/strip.png).
+   */
+  carrierStripBase64?: string;
   referralMessage?: string;
   isFoundingMember?: boolean;
   schedulingUrl?: string;
@@ -127,7 +150,9 @@ export interface AgentProfile {
   anniversaryMessageCustomTitle?: string;
   policyReviewAIEnabled?: boolean;
   welcomeSmsTemplate?: string;
-  skipWelcomeSmsConfirmation?: boolean;
+  /** Optional "teed up" first-touch intro SMS, customizable per agent.
+   *  Falls back to DEFAULT_INTRO_TEXT (lib/lead-intro-text.ts). */
+  introTextTemplate?: string;
   forwardInboundSms?: boolean;
   onboardingComplete?: boolean;
   pendingSubscriptionCelebration?: boolean;
@@ -173,6 +198,14 @@ export interface AgentProfile {
    */
   autoCreateGoogleMeet?: boolean;
   /**
+   * How the calendar (web/components/LeadsCalendar.tsx) renders the
+   * agent's Google Calendar events behind their AFL sits. 'focus'
+   * (default) = muted gray hatched busy blocks; 'normal' = each event
+   * shown with its own title in a distinct color. Persisted here so the
+   * preference follows the agent across devices.
+   */
+  calendarViewMode?: 'focus' | 'normal';
+  /**
    * How far ahead of an appointment the cron should send a push reminder
    * to the lead (Chunk 4f-extension). Defaults to 1 hour. Set to 0 to
    * disable auto push reminders entirely. The agent's manual "Send
@@ -210,6 +243,21 @@ export interface AgentProfile {
     caseStudies?: Array<{ id: string; title: string; url: string; iframeUrl?: string; thumbnailUrl?: string; videoId?: string; updatedAt?: string }>;
   };
   /**
+   * Whether the FAQ / case-study sections appear on the lead-home screen.
+   * Tri-state, resolved identically here and in /api/mobile/lead-content:
+   *   - undefined → show ONLY if the agent has ≥1 real video in that slot
+   *     (a brand-new agent's leads see nothing until there's real content —
+   *     no "Coming soon" platform-default placeholders).
+   *   - true  → always show (uploaded videos, else platform defaults).
+   *   - false → always hide, even if videos exist.
+   * The toggle lets an agent suppress a section, or opt into platform
+   * defaults (e.g. future animated default FAQs) before they've recorded
+   * their own. Persisted top-level at `agents/{agentId}.showLeadFaqs` /
+   * `.showLeadCaseStudies`. Intro is intentionally not gated this way.
+   */
+  showLeadFaqs?: boolean;
+  showLeadCaseStudies?: boolean;
+  /**
    * Per-agent dial-script template shown as an overlay during a live
    * call. Supports `{agentfirstname}`, `{leadname}`, `{leadage}` etc.
    * (see web/lib/dial-script.ts). Empty/undefined falls back to
@@ -239,6 +287,15 @@ export interface AgentProfile {
    */
   phonePaired?: boolean;
   /**
+   * Derived: whether this agent WAS paired and then had push revoked —
+   * `pushPermissionRevokedAt` is stamped (and the token cleared) when Expo
+   * returns DeviceNotRegistered on a send. Lets the pair prompts say
+   * "Reconnect — your phone dropped off" instead of a first-time "Set up".
+   * Mutually exclusive with `phonePaired` (re-registration clears the
+   * timestamp).
+   */
+  pushRevoked?: boolean;
+  /**
    * FirstPromoter affiliate enrollment, populated when the agent
    * clicks "Get my link" on /dashboard/refer-and-earn. Written by
    * `/api/affiliate/create` after creating (or recovering) a promoter
@@ -262,6 +319,23 @@ export interface AgentProfile {
    * `rememberFifResetSme`; never touched by the settings page.
    */
   fifResetSmes?: Array<{ name: string; calendarUrl?: string }>;
+  /**
+   * Agent has switched the in-app reset reveal on (default off). Gates the
+   * per-client "advanced market sit" product picker in the client detail.
+   */
+  resetRevealEnabled?: boolean;
+  /**
+   * Agent-defined lead tags (id + label + color), managed from the lead
+   * detail panel's tag editor. Mirrors `fifResetSmes`: an inline array on the
+   * agent doc, written via the tag CRUD callbacks below + optimistic state.
+   */
+  leadTags?: LeadTag[];
+  /**
+   * Saved lead lists ("segments") — named snapshots of the All-leads view's
+   * search + filters + sort. Same inline-array-on-the-agent-doc pattern as
+   * `leadTags`, written via the segment CRUD callbacks below + optimistic state.
+   */
+  savedLeadSegments?: SavedLeadSegment[];
 }
 
 interface DashboardContextValue {
@@ -276,6 +350,12 @@ interface DashboardContextValue {
   dismissTip: (sectionKey: string) => Promise<void>;
   markOnboardingMilestone: (milestone: OnboardingMilestoneKey) => Promise<void>;
   rememberFifResetSme: (sme: { name: string; calendarUrl?: string }) => Promise<void>;
+  createLeadTag: (input: { label: string; color: LeadTagColor }) => Promise<LeadTag | null>;
+  updateLeadTag: (id: string, patch: { label?: string; color?: LeadTagColor }) => Promise<void>;
+  deleteLeadTag: (id: string) => Promise<void>;
+  saveLeadSegment: (input: Omit<SavedLeadSegment, 'id'>) => Promise<SavedLeadSegment | null>;
+  renameLeadSegment: (id: string, name: string) => Promise<void>;
+  deleteLeadSegment: (id: string) => Promise<void>;
 }
 
 const DashboardContext = createContext<DashboardContextValue | null>(null);
@@ -357,6 +437,12 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           npn: typeof data.npn === 'string' ? data.npn : undefined,
           agencyLogoBase64: data.agencyLogoBase64,
           businessCardBase64: data.businessCardBase64,
+          // These two were missing from the loader, so after any refresh they
+          // came back undefined even when saved — and the settings autosave
+          // then wrote them back as null, silently wiping a saved family photo
+          // / custom carrier strip on the next edit. Load them like the others.
+          familyPhotoBase64: data.familyPhotoBase64,
+          carrierStripBase64: data.carrierStripBase64,
           referralMessage: data.referralMessage,
           isFoundingMember: data.isFoundingMember,
           schedulingUrl: data.schedulingUrl,
@@ -367,7 +453,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           anniversaryMessageCustomTitle: data.anniversaryMessageCustomTitle,
           policyReviewAIEnabled: data.policyReviewAIEnabled,
           welcomeSmsTemplate: data.welcomeSmsTemplate,
-          skipWelcomeSmsConfirmation: data.skipWelcomeSmsConfirmation,
+          introTextTemplate: typeof data.introTextTemplate === 'string' ? data.introTextTemplate : undefined,
           forwardInboundSms: data.forwardInboundSms,
           onboardingComplete: data.onboardingComplete,
           pendingSubscriptionCelebration: data.pendingSubscriptionCelebration === true,
@@ -377,7 +463,13 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           licenses: data.licenses || {},
           appointmentMode: data.appointmentMode === 'video' ? 'video' : 'phone',
           defaultMeetingLink: data.defaultMeetingLink,
-          autoCreateGoogleMeet: data.autoCreateGoogleMeet === true,
+          // Tri-state: undefined = "use the default", which is ON when Google
+          // Calendar is connected (a fresh per-meeting Meet link). Only an
+          // explicit false (the agent opted out) disables it. The on-by-default
+          // decision lives in AppointmentPicker (usingAutoMeet).
+          autoCreateGoogleMeet:
+            typeof data.autoCreateGoogleMeet === 'boolean' ? data.autoCreateGoogleMeet : undefined,
+          calendarViewMode: data.calendarViewMode === 'normal' ? 'normal' : 'focus',
           reminderPushHoursBefore: typeof data.reminderPushHoursBefore === 'number'
             ? data.reminderPushHoursBefore
             : 1,
@@ -386,6 +478,12 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           // preserve a literal `false` so an explicit opt-out survives.
           includeAppAccessInConfirmations: data.includeAppAccessInConfirmations,
           leadContent: data.leadContent || undefined,
+          // Tri-state visibility for the lead-home FAQ / case-study sections.
+          // Preserve a literal boolean; undefined = "show only if real videos
+          // exist" (resolved in /api/mobile/lead-content). MUST load here or
+          // autosave would write undefined back and erase an explicit choice.
+          showLeadFaqs: typeof data.showLeadFaqs === 'boolean' ? data.showLeadFaqs : undefined,
+          showLeadCaseStudies: typeof data.showLeadCaseStudies === 'boolean' ? data.showLeadCaseStudies : undefined,
           dialScript: typeof data.dialScript === 'string' ? data.dialScript : undefined,
           dialPersistence: (data.dialPersistence === 2 || data.dialPersistence === 3)
             ? data.dialPersistence
@@ -395,6 +493,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
             data.pushToken &&
             !data.pushPermissionRevokedAt,
           ),
+          pushRevoked: Boolean(data.pushPermissionRevokedAt),
           affiliate: data.affiliate && typeof data.affiliate === 'object' ? data.affiliate : undefined,
           fifResetSmes: Array.isArray(data.fifResetSmes)
             ? (data.fifResetSmes as Array<{ name?: unknown; calendarUrl?: unknown }>)
@@ -408,6 +507,9 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
                   return url ? { name, calendarUrl: url } : { name };
                 })
             : [],
+          leadTags: parseLeadTags(data.leadTags),
+          savedLeadSegments: parseLeadSegments(data.savedLeadSegments),
+          resetRevealEnabled: data.resetRevealEnabled === true,
         });
       } else {
         setAgentProfile({});
@@ -450,6 +552,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
             data.pushToken &&
             !data.pushPermissionRevokedAt,
           ),
+          pushRevoked: Boolean(data.pushPermissionRevokedAt),
         }));
       },
       (err) => {
@@ -566,6 +669,126 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     }
   }, [user, agentProfile.fifResetSmes]);
 
+  // Lead tags — agent-defined labels. Same storage shape as
+  // rememberFifResetSme: an inline array on the agent doc, merge-written with
+  // optimistic state. Definition deletes reconcile lazily (a lead keeps a
+  // dangling tagId; resolveLeadTags drops it), so a delete never fans out
+  // writes over the book.
+  const createLeadTag = useCallback(
+    async (input: { label: string; color: LeadTagColor }): Promise<LeadTag | null> => {
+      if (!user) return null;
+      const label = normalizeTagLabel(input.label);
+      if (!label) return null;
+      const prev = agentProfile.leadTags ?? [];
+      // Reuse a same-label tag (case-insensitive) rather than near-duplicating.
+      const existing = prev.find((t) => t.label.toLowerCase() === label.toLowerCase());
+      if (existing) return existing;
+      if (prev.length >= MAX_LEAD_TAGS) return null;
+      const tag: LeadTag = { id: newLeadTagId(), label, color: input.color };
+      const next = [...prev, tag];
+      try {
+        await setDoc(doc(db, 'agents', user.uid), { leadTags: next }, { merge: true });
+        setAgentProfile((p) => ({ ...p, leadTags: next }));
+        return tag;
+      } catch (error) {
+        console.error('Error creating lead tag:', error);
+        return null;
+      }
+    },
+    [user, agentProfile.leadTags],
+  );
+
+  const updateLeadTag = useCallback(
+    async (id: string, patch: { label?: string; color?: LeadTagColor }): Promise<void> => {
+      if (!user) return;
+      const prev = agentProfile.leadTags ?? [];
+      const next = prev.map((t) => {
+        if (t.id !== id) return t;
+        const label = patch.label != null ? normalizeTagLabel(patch.label) : t.label;
+        return { ...t, label: label || t.label, color: patch.color ?? t.color };
+      });
+      try {
+        await setDoc(doc(db, 'agents', user.uid), { leadTags: next }, { merge: true });
+        setAgentProfile((p) => ({ ...p, leadTags: next }));
+      } catch (error) {
+        console.error('Error updating lead tag:', error);
+      }
+    },
+    [user, agentProfile.leadTags],
+  );
+
+  const deleteLeadTag = useCallback(
+    async (id: string): Promise<void> => {
+      if (!user) return;
+      const prev = agentProfile.leadTags ?? [];
+      const next = prev.filter((t) => t.id !== id);
+      if (next.length === prev.length) return;
+      try {
+        await setDoc(doc(db, 'agents', user.uid), { leadTags: next }, { merge: true });
+        setAgentProfile((p) => ({ ...p, leadTags: next }));
+      } catch (error) {
+        console.error('Error deleting lead tag:', error);
+      }
+    },
+    [user, agentProfile.leadTags],
+  );
+
+  // Saved lead lists ("segments"). Same storage shape as leadTags: an inline
+  // array on the agent doc, merge-written with optimistic state.
+  const saveLeadSegment = useCallback(
+    async (input: Omit<SavedLeadSegment, 'id'>): Promise<SavedLeadSegment | null> => {
+      if (!user) return null;
+      const name = normalizeSegmentName(input.name);
+      if (!name) return null;
+      const prev = agentProfile.savedLeadSegments ?? [];
+      if (prev.length >= MAX_LEAD_SEGMENTS) return null;
+      const segment: SavedLeadSegment = { ...input, name, id: newLeadSegmentId() };
+      const next = [...prev, segment];
+      try {
+        await setDoc(doc(db, 'agents', user.uid), { savedLeadSegments: next }, { merge: true });
+        setAgentProfile((p) => ({ ...p, savedLeadSegments: next }));
+        return segment;
+      } catch (error) {
+        console.error('Error saving lead segment:', error);
+        return null;
+      }
+    },
+    [user, agentProfile.savedLeadSegments],
+  );
+
+  const renameLeadSegment = useCallback(
+    async (id: string, name: string): Promise<void> => {
+      if (!user) return;
+      const clean = normalizeSegmentName(name);
+      if (!clean) return;
+      const prev = agentProfile.savedLeadSegments ?? [];
+      const next = prev.map((s) => (s.id === id ? { ...s, name: clean } : s));
+      try {
+        await setDoc(doc(db, 'agents', user.uid), { savedLeadSegments: next }, { merge: true });
+        setAgentProfile((p) => ({ ...p, savedLeadSegments: next }));
+      } catch (error) {
+        console.error('Error renaming lead segment:', error);
+      }
+    },
+    [user, agentProfile.savedLeadSegments],
+  );
+
+  const deleteLeadSegment = useCallback(
+    async (id: string): Promise<void> => {
+      if (!user) return;
+      const prev = agentProfile.savedLeadSegments ?? [];
+      const next = prev.filter((s) => s.id !== id);
+      if (next.length === prev.length) return;
+      try {
+        await setDoc(doc(db, 'agents', user.uid), { savedLeadSegments: next }, { merge: true });
+        setAgentProfile((p) => ({ ...p, savedLeadSegments: next }));
+      } catch (error) {
+        console.error('Error deleting lead segment:', error);
+      }
+    },
+    [user, agentProfile.savedLeadSegments],
+  );
+
   const isAdmin = isAdminEmail(user?.email);
 
   return (
@@ -582,6 +805,12 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         dismissTip,
         markOnboardingMilestone,
         rememberFifResetSme,
+        createLeadTag,
+        updateLeadTag,
+        deleteLeadTag,
+        saveLeadSegment,
+        renameLeadSegment,
+        deleteLeadSegment,
       }}
     >
       {children}

@@ -6,6 +6,7 @@ import {
   readValidPushToken,
   sendExpoPush,
 } from './push-permission-lifecycle';
+import { notifyAgentPhoneDisconnected } from './agent-phone-alert';
 
 /**
  * Push notifications targeted at the AGENT (not the lead/client).
@@ -110,6 +111,13 @@ export async function pushAgentForConfirmation(args: {
   );
 
   if (outcome.status === 'ok') return { outcome: 'ok' };
-  if (outcome.status === 'token_invalidated') return { outcome: 'no_token' };
+  if (outcome.status === 'token_invalidated') {
+    // The agent's own device token just died (DeviceNotRegistered → token
+    // cleared + revoked stamped by sendExpoPush). Push is the channel that
+    // broke, so reach the agent by email with a one-tap reconnect link.
+    // Best-effort + once-per-drop; never blocks the push result.
+    await notifyAgentPhoneDisconnected({ agentRef, agentData });
+    return { outcome: 'no_token' };
+  }
   return { outcome: 'failed', reason: outcome.errorCode || 'unknown' };
 }

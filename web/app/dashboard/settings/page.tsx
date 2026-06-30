@@ -3,279 +3,70 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import Cropper from 'react-easy-crop';
 import type { Area } from 'react-easy-crop';
-import { Upload as TusUpload } from 'tus-js-client';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import {
-  updatePassword,
-  reauthenticateWithCredential,
-  EmailAuthProvider,
-} from 'firebase/auth';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { auth, db } from '../../../firebase';
+import { db } from '../../../firebase';
 import { useDashboard } from '../DashboardContext';
 import { captureEvent } from '../../../lib/posthog';
 import { ANALYTICS_EVENTS } from '../../../lib/analytics-events';
-import { PRICING_TIERS, type PricingTierId } from '../../../lib/pricing';
-import StateLicensesSection from '../../../components/StateLicensesSection';
-import { DEFAULT_DIAL_SCRIPT, SCRIPT_TOKEN_HINTS, SCRIPT_CONDITION_HINTS } from '../../../lib/dial-script';
-import { canAccessLeads } from '../../../lib/tier-gating';
+import {
+  resizeImage,
+  getCroppedImage,
+  type SaveMessage,
+  type GoogleDriveStatusResponse,
+  type GoogleCalendarStatusResponse,
+} from './settingsHelpers';
+import ProfileTab from './ProfileTab';
+import BrandingTab from './BrandingTab';
+import MessagesTab from './MessagesTab';
+import AppointmentsLeadsTab from './AppointmentsLeadsTab';
+import AccountTab from './AccountTab';
 
-type Tab = 'profile' | 'branding' | 'referral-ai' | 'account';
+type Tab = 'you' | 'appointments' | 'leads' | 'messages' | 'account';
 
 const TABS: { key: Tab; label: string }[] = [
-  { key: 'profile', label: 'Profile' },
-  { key: 'branding', label: 'Branding' },
-  { key: 'referral-ai', label: 'Referral & AI' },
+  { key: 'you', label: 'You' },
+  { key: 'appointments', label: 'Appointments' },
+  { key: 'leads', label: 'Leads & dialer' },
+  { key: 'messages', label: 'Messages & automation' },
   { key: 'account', label: 'Account' },
 ];
 
-interface GoogleDriveStatusResponse {
-  success: boolean;
-  connected: boolean;
-  data?: {
-    googleEmail?: string;
-    connectedAt?: string;
-    updatedAt?: string;
-    scope?: string;
-    hasRefreshToken: boolean;
-  };
-  error?: string;
-}
-
-interface GoogleCalendarStatusResponse {
-  success: boolean;
-  connected: boolean;
-  data?: {
-    googleEmail?: string;
-    connectedAt?: string;
-    updatedAt?: string;
-    scope?: string;
-    hasRefreshToken: boolean;
-  };
-  error?: string;
-}
-
-interface LeadVideoItem {
-  id: string;
-  title: string;
-  url: string;             // HLS playlist — what the mobile player plays.
-  iframeUrl?: string;      // Bunny hosted-player URL — used for in-browser preview.
-  thumbnailUrl?: string;
-  videoId?: string;        // Bunny GUID — needed when deleting.
-  updatedAt?: string;
-}
-
-// Sanity cap on lead-home video uploads. Bunny.net Stream accepts much
-// bigger files, but anything above this for an intro / FAQ / case-study
-// video is almost certainly the wrong file picked by accident (a
-// vacation movie, a screen recording). Catch it in the browser before
-// the agent burns half an hour uploading it; the server endpoint
-// re-checks the size the browser advertised as defense in depth.
-const MAX_LEAD_VIDEO_BYTES = 1024 * 1024 * 1024; // 1 GB
-
-/**
- * Reusable upload list for FAQ + case-study video slots. Renders one
- * row per existing item with a title input + preview/remove, plus a
- * "+ Add" row for a new upload (title field + file picker).
- */
-function LeadVideoList({
-  kind,
-  label,
-  items,
-  busyKey,
-  addingProgress,
-  onUpload,
-  onDelete,
-}: {
-  kind: 'faq' | 'caseStudy';
-  label: string;
-  items: LeadVideoItem[];
-  busyKey: string | null;
-  addingProgress: number | null;
-  onUpload: (file: File, slotId: string, title: string) => void;
-  onDelete: (slotId: string) => void;
-}) {
-  const [newTitle, setNewTitle] = useState('');
-  const handleNewFile = useCallback((file: File) => {
-    const slotId = `${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const title = newTitle.trim() || 'Untitled video';
-    onUpload(file, slotId, title);
-    setNewTitle('');
-  }, [kind, newTitle, onUpload]);
-
-  return (
-    <div className="mb-5 pb-5 border-b border-[#ececec] last:border-b-0 last:pb-0 last:mb-0">
-      <h4 className="text-xs font-semibold text-[#374151] mb-2">{label}</h4>
-      {items.length === 0 && (
-        <p className="text-[11px] text-[#707070] mb-2">No videos uploaded yet.</p>
-      )}
-      <ul className="space-y-2 mb-3">
-        {items.map((item) => {
-          const itemBusy = busyKey === `${kind}:${item.id}`;
-          return (
-            <li key={item.id} className="flex items-center justify-between gap-3 rounded-[5px] border border-[#d0d0d0] bg-[#fafafa] px-3 py-2">
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-[#374151] truncate">{item.title || '(no title)'}</p>
-                {(item.iframeUrl || item.url) && (
-                  <a
-                    href={item.iframeUrl || item.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[10px] text-[#44bbaa] hover:text-[#005751] font-semibold"
-                  >
-                    Preview →
-                  </a>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => onDelete(item.id)}
-                disabled={itemBusy}
-                className="text-[11px] text-red-600 hover:text-red-800 font-semibold disabled:opacity-50"
-              >
-                {itemBusy ? 'Working…' : 'Remove'}
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-      <div className="flex items-center gap-2">
-        <input
-          type="text"
-          value={newTitle}
-          onChange={(e) => setNewTitle(e.target.value)}
-          placeholder={kind === 'faq' ? 'e.g. Is this a sales pitch?' : 'e.g. How a real client handled this'}
-          className="flex-1 px-3 py-2 bg-white border border-[#d0d0d0] rounded-[5px] text-xs focus:outline-none focus:border-[#45bcaa]"
-        />
-        <label className={addingProgress !== null ? 'pointer-events-none' : ''}>
-          <input
-            type="file"
-            accept="video/mp4,video/quicktime,video/webm"
-            className="hidden"
-            disabled={addingProgress !== null}
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) {
-                handleNewFile(f);
-                e.currentTarget.value = '';
-              }
-            }}
-          />
-          <span className={`inline-block px-3 py-2 text-xs font-semibold rounded-[5px] cursor-pointer whitespace-nowrap ${
-            addingProgress !== null
-              ? 'bg-gray-200 text-gray-500 cursor-default'
-              : 'bg-[#005851] hover:bg-[#004440] text-white'
-          }`}>
-            {addingProgress !== null ? `Uploading… ${addingProgress}%` : '+ Add'}
-          </span>
-        </label>
-      </div>
-    </div>
-  );
-}
-
-function resizeImage(file: File, maxSize: number): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        const scale = Math.min(maxSize / img.width, maxSize / img.height, 1);
-        const w = Math.round(img.width * scale);
-        const h = Math.round(img.height * scale);
-        const canvas = document.createElement('canvas');
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return reject(new Error('Canvas not supported'));
-        ctx.drawImage(img, 0, 0, w, h);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-        const base64 = dataUrl.split(',')[1];
-        resolve(base64);
-      };
-      img.onerror = () => reject(new Error('Failed to load image'));
-      img.src = reader.result as string;
-    };
-    reader.onerror = () => reject(new Error('Failed to read file'));
-    reader.readAsDataURL(file);
-  });
-}
-
-function readFileAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(new Error('Failed to read file'));
-    reader.readAsDataURL(file);
-  });
-}
-
-function getCroppedImage(imageSrc: string, pixelCrop: Area, maxSize: number): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      const size = Math.min(pixelCrop.width, pixelCrop.height);
-      const outSize = Math.min(size, maxSize);
-      canvas.width = outSize;
-      canvas.height = outSize;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return reject(new Error('Canvas not supported'));
-      ctx.drawImage(
-        img,
-        pixelCrop.x, pixelCrop.y, pixelCrop.width, pixelCrop.height,
-        0, 0, outSize, outSize,
-      );
-      resolve(canvas.toDataURL('image/jpeg', 0.85).split(',')[1]);
-    };
-    img.onerror = () => reject(new Error('Failed to load image'));
-    img.src = imageSrc;
-  });
-}
-
-function formatPhoneNumber(value: string): string {
-  const digits = value.replace(/\D/g, '').slice(0, 10);
-  if (digits.length === 0) return '';
-  if (digits.length <= 3) return `(${digits}`;
-  if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
-  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
-}
-
-function detectSchedulingPlatform(url: string): string | null {
-  if (/calendly\.com/i.test(url)) return 'Calendly';
-  if (/cal\.com/i.test(url)) return 'Cal.com';
-  if (/acuityscheduling\.com/i.test(url)) return 'Acuity';
-  if (/calendar\.google\.com/i.test(url)) return 'Google Calendar';
-  return null;
-}
+// Old tab keys still arrive from deep links (onboarding, GetStartedHome,
+// patch nudges). Map them onto the regrouped tabs so nothing 404s a tab.
+const TAB_ALIASES: Record<string, Tab> = {
+  profile: 'you',
+  branding: 'you',
+  'appointments-leads': 'appointments',
+};
 
 export default function SettingsPage() {
-  const { user, agentProfile, setAgentProfile, loading, refreshProfile } = useDashboard();
+  const { user, agentProfile, setAgentProfile, loading } = useDashboard();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const [activeTab, setActiveTab] = useState<Tab>('profile');
+  const [activeTab, setActiveTab] = useState<Tab>('you');
+
+  // Deep-link a specific tab via ?tab=account|you|appointments-leads etc.,
+  // so onboarding links can drop the agent exactly where they need to be.
+  // Legacy keys (profile, branding) resolve through TAB_ALIASES.
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (!tabParam) return;
+    const resolved = (TAB_ALIASES[tabParam] ?? tabParam) as Tab;
+    if (TABS.some((t) => t.key === resolved)) {
+      setActiveTab(resolved);
+    }
+  }, [searchParams]);
+
   const [saving, setSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [saveMessage, setSaveMessage] = useState<SaveMessage>(null);
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
-  // Password change
-  const [showPasswordSection, setShowPasswordSection] = useState(false);
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [passwordError, setPasswordError] = useState('');
-  const [passwordSuccess, setPasswordSuccess] = useState('');
-  const [changingPassword, setChangingPassword] = useState(false);
-
-  // Email change
+  // Change Email open/close is lifted here (not into AccountTab) because
+  // the Profile tab's "Change" button opens it on the Account tab.
   const [showEmailSection, setShowEmailSection] = useState(false);
-  const [newEmail, setNewEmail] = useState('');
-  const [emailPassword, setEmailPassword] = useState('');
-  const [emailError, setEmailError] = useState('');
-  const [emailSuccess, setEmailSuccess] = useState('');
-  const [changingEmail, setChangingEmail] = useState(false);
 
   // Photo crop modal
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
@@ -297,13 +88,13 @@ export default function SettingsPage() {
   const [googleCalendarStatus, setGoogleCalendarStatus] = useState<GoogleCalendarStatusResponse['data'] | null>(null);
   const [googleCalendarError, setGoogleCalendarError] = useState<string | null>(null);
 
-  const photoInputRef = useRef<HTMLInputElement>(null);
-  const logoInputRef = useRef<HTMLInputElement>(null);
-  const cardInputRef = useRef<HTMLInputElement>(null);
   const saveInFlightRef = useRef(false);
   const autoSaveTimerRef = useRef<number | null>(null);
   const autosaveHydratedRef = useRef(false);
   const lastSavedSnapshotRef = useRef('');
+  // Holds a live "flush if there are unsaved edits" closure so the unmount
+  // handler can persist a pending (debounced) autosave instead of dropping it.
+  const flushPendingSaveRef = useRef<() => void>(() => {});
 
   const updateField = useCallback(
     <K extends keyof typeof agentProfile>(key: K, value: (typeof agentProfile)[K]) => {
@@ -321,6 +112,8 @@ export default function SettingsPage() {
     agencyLogoBase64: agentProfile.agencyLogoBase64 || null,
     businessCardBase64: agentProfile.businessCardBase64 || null,
     photoBase64: agentProfile.photoBase64 || null,
+    familyPhotoBase64: agentProfile.familyPhotoBase64 || null,
+    carrierStripBase64: agentProfile.carrierStripBase64 || null,
     aiAssistantEnabled: agentProfile.aiAssistantEnabled ?? true,
     referralMessage: agentProfile.referralMessage || '',
     autoHolidayCards: agentProfile.autoHolidayCards ?? false,
@@ -329,16 +122,20 @@ export default function SettingsPage() {
     anniversaryMessageCustomTitle: agentProfile.anniversaryMessageCustomTitle || '',
     policyReviewAIEnabled: agentProfile.policyReviewAIEnabled ?? true,
     welcomeSmsTemplate: agentProfile.welcomeSmsTemplate || '',
-    skipWelcomeSmsConfirmation: agentProfile.skipWelcomeSmsConfirmation ?? false,
+    introTextTemplate: agentProfile.introTextTemplate || '',
     appointmentMode: agentProfile.appointmentMode || 'phone',
     defaultMeetingLink: agentProfile.defaultMeetingLink || '',
-    autoCreateGoogleMeet: agentProfile.autoCreateGoogleMeet ?? false,
+    autoCreateGoogleMeet: agentProfile.autoCreateGoogleMeet ?? true,
     reminderPushHoursBefore: agentProfile.reminderPushHoursBefore ?? 1,
     dialScript: agentProfile.dialScript || '',
     dialPersistence: agentProfile.dialPersistence ?? 1,
     forwardInboundSms: agentProfile.forwardInboundSms ?? true,
     confirmationChannel: agentProfile.confirmationChannel === 'email' ? 'email' : 'text',
     includeAppAccessInConfirmations: agentProfile.includeAppAccessInConfirmations ?? true,
+    resetRevealEnabled: agentProfile.resetRevealEnabled ?? false,
+    // Tri-state: null preserves "undefined = show only if real videos exist".
+    showLeadFaqs: agentProfile.showLeadFaqs ?? null,
+    showLeadCaseStudies: agentProfile.showLeadCaseStudies ?? null,
   }), [
     agentProfile.name,
     agentProfile.phoneNumber,
@@ -348,6 +145,8 @@ export default function SettingsPage() {
     agentProfile.agencyLogoBase64,
     agentProfile.businessCardBase64,
     agentProfile.photoBase64,
+    agentProfile.familyPhotoBase64,
+    agentProfile.carrierStripBase64,
     agentProfile.aiAssistantEnabled,
     agentProfile.referralMessage,
     agentProfile.autoHolidayCards,
@@ -356,7 +155,7 @@ export default function SettingsPage() {
     agentProfile.anniversaryMessageCustomTitle,
     agentProfile.policyReviewAIEnabled,
     agentProfile.welcomeSmsTemplate,
-    agentProfile.skipWelcomeSmsConfirmation,
+    agentProfile.introTextTemplate,
     agentProfile.appointmentMode,
     agentProfile.defaultMeetingLink,
     agentProfile.autoCreateGoogleMeet,
@@ -366,6 +165,9 @@ export default function SettingsPage() {
     agentProfile.forwardInboundSms,
     agentProfile.confirmationChannel,
     agentProfile.includeAppAccessInConfirmations,
+    agentProfile.resetRevealEnabled,
+    agentProfile.showLeadFaqs,
+    agentProfile.showLeadCaseStudies,
   ]);
 
   const loadGoogleDriveStatus = useCallback(async () => {
@@ -570,161 +372,8 @@ export default function SettingsPage() {
     }
   }, [user]);
 
-  // ── Lead-home video uploads (Chunk 3 — Bunny.net Stream + TUS) ──
-  const [leadVideoBusy, setLeadVideoBusy] = useState<string | null>(null);
-  const [leadVideoProgress, setLeadVideoProgress] = useState<Record<string, number>>({});
-  const [leadVideoError, setLeadVideoError] = useState<string | null>(null);
-  // Local-only state for the intro title input. We initialize from
-  // the saved title (if any) and let the agent edit before uploading.
-  // The string lives here rather than on agentProfile so typing
-  // doesn't trigger Firestore writes on every keystroke.
-  const [introTitleDraft, setIntroTitleDraft] = useState<string>('');
-
-  const uploadLeadVideo = useCallback(async (params: {
-    file: File;
-    slot: 'intro' | 'faq' | 'caseStudy';
-    slotId?: string;
-    title?: string;
-  }) => {
-    if (!user) return;
-    if (params.file.size > MAX_LEAD_VIDEO_BYTES) {
-      const sizeMb = (params.file.size / 1024 / 1024).toFixed(0);
-      const msg = `That video is ${sizeMb} MB — max is 1 GB per video. Pick a smaller file.`;
-      setLeadVideoError(msg);
-      setSaveMessage({ type: 'error', text: msg });
-      return;
-    }
-    const busyKey = params.slot === 'intro' ? 'intro' : `${params.slot}:${params.slotId}`;
-    setLeadVideoBusy(busyKey);
-    setLeadVideoProgress((prev) => ({ ...prev, [busyKey]: 0 }));
-    setLeadVideoError(null);
-    try {
-      const token = await user.getIdToken();
-      const title = params.title || 'Intro';
-
-      // Step 1: provision Bunny.net upload endpoint. Sending the file size
-      // lets the server reject oversized files before minting the upload
-      // URL (the browser already capped above, but a malicious client
-      // could skip the browser cap).
-      const provRes = await fetch('/api/lead-content/upload-url', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ slot: params.slot, slotId: params.slotId, title, size: params.file.size }),
-      });
-      const provData = await provRes.json().catch(() => ({}));
-      if (!provRes.ok) throw new Error(provData?.error || `Could not start upload (${provRes.status})`);
-      const { videoId, uploadUrl, headers: uploadHeaders } = provData as {
-        videoId: string;
-        uploadUrl: string;
-        headers: Record<string, string>;
-      };
-
-      // Step 2: stream the file straight to Bunny via TUS (resumable, bypasses Vercel).
-      await new Promise<void>((resolve, reject) => {
-        const upload = new TusUpload(params.file, {
-          endpoint: uploadUrl,
-          headers: uploadHeaders,
-          metadata: { filetype: params.file.type, title },
-          chunkSize: 50 * 1024 * 1024,
-          retryDelays: [0, 1000, 3000, 5000, 10000],
-          onProgress: (sent, total) => {
-            setLeadVideoProgress((prev) => ({
-              ...prev,
-              [busyKey]: Math.min(99, Math.round((sent / total) * 100)),
-            }));
-          },
-          onSuccess: () => resolve(),
-          onError: (err) => reject(err instanceof Error ? err : new Error(String(err))),
-        });
-        upload.start();
-      });
-      setLeadVideoProgress((prev) => ({ ...prev, [busyKey]: 100 }));
-
-      // Step 3: persist the new entry on Firestore.
-      const commitRes = await fetch('/api/lead-content/commit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ slot: params.slot, slotId: params.slotId, title, videoId }),
-      });
-      const commitData = await commitRes.json().catch(() => ({}));
-      if (!commitRes.ok) throw new Error(commitData?.error || `Could not save video (${commitRes.status})`);
-
-      // Patch agentProfile.leadContent in-place so the UI updates immediately.
-      setAgentProfile((prev) => {
-        const next = { ...prev };
-        const lc = { ...(next.leadContent || {}) };
-        if (params.slot === 'intro') {
-          lc.intro = commitData.entry;
-        } else {
-          const arrKey = params.slot === 'faq' ? 'faqs' : 'caseStudies';
-          const current = (lc[arrKey] as LeadVideoItem[] | undefined) || [];
-          const arr: LeadVideoItem[] = [...current];
-          const idx = arr.findIndex((e) => e.id === params.slotId);
-          if (idx >= 0) arr[idx] = commitData.entry as LeadVideoItem;
-          else arr.push(commitData.entry as LeadVideoItem);
-          lc[arrKey] = arr;
-        }
-        next.leadContent = lc;
-        return next;
-      });
-      setSaveMessage({ type: 'success', text: 'Video uploaded.' });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Upload failed';
-      setLeadVideoError(message);
-      setSaveMessage({ type: 'error', text: message });
-    } finally {
-      setLeadVideoBusy(null);
-      setLeadVideoProgress((prev) => {
-        const next = { ...prev };
-        delete next[busyKey];
-        return next;
-      });
-    }
-  }, [user, setAgentProfile]);
-
-  const deleteLeadVideo = useCallback(async (slot: 'intro' | 'faq' | 'caseStudy', slotId?: string) => {
-    if (!user) return;
-    const busyKey = slot === 'intro' ? 'intro' : `${slot}:${slotId}`;
-    setLeadVideoBusy(busyKey);
-    setLeadVideoError(null);
-    try {
-      const token = await user.getIdToken();
-      const res = await fetch('/api/lead-content/delete', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ slot, slotId }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || `Delete failed (${res.status})`);
-      setAgentProfile((prev) => {
-        const next = { ...prev };
-        const lc = { ...(next.leadContent || {}) };
-        if (slot === 'intro') {
-          delete lc.intro;
-        } else {
-          const arrKey = slot === 'faq' ? 'faqs' : 'caseStudies';
-          const arr: LeadVideoItem[] = ((lc[arrKey] as LeadVideoItem[] | undefined) || [])
-            .filter((e) => e.id !== slotId);
-          lc[arrKey] = arr;
-        }
-        next.leadContent = lc;
-        return next;
-      });
-      setSaveMessage({ type: 'success', text: 'Video removed.' });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Delete failed';
-      setLeadVideoError(message);
-      setSaveMessage({ type: 'error', text: message });
-    } finally {
-      setLeadVideoBusy(null);
-    }
-  }, [user, setAgentProfile]);
-
   const handleImageUpload = useCallback(
-    async (file: File, maxSize: number, field: 'photoBase64' | 'agencyLogoBase64' | 'businessCardBase64') => {
+    async (file: File, maxSize: number, field: 'photoBase64' | 'agencyLogoBase64' | 'businessCardBase64' | 'familyPhotoBase64' | 'carrierStripBase64') => {
       try {
         const base64 = await resizeImage(file, maxSize);
         updateField(field, base64);
@@ -784,6 +433,8 @@ export default function SettingsPage() {
         agencyLogoBase64: agentProfile.agencyLogoBase64 || null,
         businessCardBase64: agentProfile.businessCardBase64 || null,
         photoBase64: agentProfile.photoBase64 || null,
+        familyPhotoBase64: agentProfile.familyPhotoBase64 || null,
+        carrierStripBase64: agentProfile.carrierStripBase64 || null,
         aiAssistantEnabled: agentProfile.aiAssistantEnabled ?? true,
         referralMessage: agentProfile.referralMessage || '',
         autoHolidayCards: agentProfile.autoHolidayCards ?? false,
@@ -792,10 +443,11 @@ export default function SettingsPage() {
         anniversaryMessageCustomTitle: agentProfile.anniversaryMessageCustomTitle || '',
         policyReviewAIEnabled: agentProfile.policyReviewAIEnabled ?? true,
         welcomeSmsTemplate: agentProfile.welcomeSmsTemplate || '',
-        skipWelcomeSmsConfirmation: agentProfile.skipWelcomeSmsConfirmation ?? false,
+        introTextTemplate: (agentProfile.introTextTemplate || '').slice(0, 1000),
         appointmentMode: agentProfile.appointmentMode === 'video' ? 'video' : 'phone',
         defaultMeetingLink: (agentProfile.defaultMeetingLink || '').trim(),
-        autoCreateGoogleMeet: agentProfile.autoCreateGoogleMeet ?? false,
+        autoCreateGoogleMeet: agentProfile.autoCreateGoogleMeet ?? true,
+        resetRevealEnabled: agentProfile.resetRevealEnabled ?? false,
         reminderPushHoursBefore: (() => {
           const raw = Number(agentProfile.reminderPushHoursBefore ?? 1);
           if (!Number.isFinite(raw)) return 1;
@@ -815,6 +467,11 @@ export default function SettingsPage() {
         // false. The app link is still gated on a real intro video at
         // send time, so ON here never produces an empty prep page.
         includeAppAccessInConfirmations: agentProfile.includeAppAccessInConfirmations ?? true,
+        // Lead-home section visibility. null = undefined = "show only if the
+        // agent has a real video in that slot" (resolved in the mobile
+        // manifest). An explicit true/false is the agent's override.
+        showLeadFaqs: agentProfile.showLeadFaqs ?? null,
+        showLeadCaseStudies: agentProfile.showLeadCaseStudies ?? null,
       }, { merge: true });
 
       if (isFirstTimePhone) {
@@ -880,6 +537,13 @@ export default function SettingsPage() {
     }
   }, [activeTab, agentProfile, settingsSnapshot, user]);
 
+  // Keep the flush closure current each render (latest handleSave + snapshot).
+  flushPendingSaveRef.current = () => {
+    if (settingsSnapshot !== lastSavedSnapshotRef.current) {
+      void handleSave('auto', settingsSnapshot);
+    }
+  };
+
   useEffect(() => {
     if (loading || !user) return;
     if (!autosaveHydratedRef.current) {
@@ -914,88 +578,27 @@ export default function SettingsPage() {
   useEffect(() => () => {
     if (autoSaveTimerRef.current) {
       window.clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
     }
+    // Flush a pending (debounced) autosave so leaving the page mid-edit —
+    // e.g. uploading a photo then jumping straight to the deck — still saves.
+    flushPendingSaveRef.current();
   }, []);
 
-  const handlePasswordChange = async () => {
-    setPasswordError('');
-    setPasswordSuccess('');
-    if (!newPassword || newPassword.length < 6) {
-      setPasswordError('New password must be at least 6 characters.');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setPasswordError('Passwords do not match.');
-      return;
-    }
-    if (!user?.email) return;
-    setChangingPassword(true);
-    try {
-      const credential = EmailAuthProvider.credential(user.email, currentPassword);
-      await reauthenticateWithCredential(user, credential);
-      await updatePassword(user, newPassword);
-      setPasswordSuccess('Password updated successfully.');
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-    } catch (err: unknown) {
-      const code = (err as { code?: string }).code;
-      if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
-        setPasswordError('Current password is incorrect.');
-      } else {
-        setPasswordError('Failed to update password. Please try again.');
-      }
-    } finally {
-      setChangingPassword(false);
-    }
-  };
-
-  const handleEmailChange = async () => {
-    setEmailError('');
-    setEmailSuccess('');
-    const trimmedEmail = newEmail.trim().toLowerCase();
-    if (!trimmedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
-      setEmailError('Please enter a valid email address.');
-      return;
-    }
-    if (!emailPassword) {
-      setEmailError('Please enter your current password to confirm.');
-      return;
-    }
-    if (!user?.email) return;
-    setChangingEmail(true);
-    try {
-      const credential = EmailAuthProvider.credential(user.email, emailPassword);
-      await reauthenticateWithCredential(user, credential);
-
-      const token = await user.getIdToken(true);
-      const res = await fetch('/api/auth/update-email', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ newEmail: trimmedEmail }),
-      });
-      const data = await res.json();
-
-      if (!res.ok) {
-        setEmailError(data.error || 'Failed to update email. Please try again.');
-        return;
-      }
-
-      setAgentProfile((prev) => ({ ...prev, email: trimmedEmail }));
-      setEmailSuccess(`Email updated to ${trimmedEmail}. Sign out and sign back in with your new email.`);
-      setNewEmail('');
-      setEmailPassword('');
-    } catch (err: unknown) {
-      const code = (err as { code?: string }).code;
-      if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
-        setEmailError('Current password is incorrect.');
-      } else {
-        setEmailError('Failed to update email. Please try again.');
-      }
-    } finally {
-      setChangingEmail(false);
-    }
-  };
+  // Deep link: the live-call dial-script popup links to
+  // /dashboard/settings#dial-script ("Edit script in Settings"). The
+  // dial-script card lives on the Leads & dialer tab, so once the profile
+  // has loaded, switch to that tab and scroll the card into view.
+  useEffect(() => {
+    if (loading) return;
+    if (typeof window === 'undefined') return;
+    if (window.location.hash !== '#dial-script') return;
+    setActiveTab('leads');
+    const t = window.setTimeout(() => {
+      document.getElementById('dial-script')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 120);
+    return () => window.clearTimeout(t);
+  }, [loading]);
 
   const handleManageSubscription = async () => {
     if (!user) return;
@@ -1018,12 +621,8 @@ export default function SettingsPage() {
 
   if (loading) return null;
 
-  const schedulingPlatform = agentProfile.schedulingUrl
-    ? detectSchedulingPlatform(agentProfile.schedulingUrl)
-    : null;
-
   const agentFirstName = agentProfile.name?.split(' ')[0] || 'Agent';
-  const showPhonePreview = activeTab === 'profile' || activeTab === 'branding';
+  const showPhonePreview = activeTab === 'you';
 
   return (
     <div className={`mx-auto ${showPhonePreview ? 'max-w-5xl' : 'max-w-2xl'}`}>
@@ -1071,17 +670,18 @@ export default function SettingsPage() {
       <div className={showPhonePreview ? 'flex gap-8 items-start' : ''}>
       <div className={showPhonePreview ? 'flex-1 min-w-0' : ''}>
 
-      {/* Tab Bar */}
-      <div className="flex gap-1 mb-6 bg-white rounded-[5px] border border-gray-200 p-1">
+      {/* Tabbed panel — tabs cap the content well below them */}
+      <div className="rounded-[14px] border border-gray-200 bg-white overflow-hidden">
+      <div className="flex flex-wrap gap-1.5 p-2.5 border-b border-gray-200">
         {TABS.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            data-onboarding-target={tab.key === 'profile' ? 'settings-tab-profile' : tab.key === 'branding' ? 'settings-tab-branding' : undefined}
-            className={`flex-1 py-2 px-3 text-sm font-semibold rounded-[4px] transition-colors ${
+            data-onboarding-target={tab.key === 'you' ? 'settings-tab-profile' : undefined}
+            className={`px-4 py-2.5 text-sm font-semibold rounded-lg transition-colors ${
               activeTab === tab.key
-                ? 'bg-[#005851] text-white'
-                : 'text-[#707070] hover:text-[#005851] hover:bg-[#f5f5f5]'
+                ? 'bg-[#005851] text-white shadow-sm'
+                : 'text-[#6b7280] hover:bg-gray-100 hover:text-[#005851]'
             }`}
           >
             {tab.label}
@@ -1089,1297 +689,95 @@ export default function SettingsPage() {
         ))}
       </div>
 
-      {/* ─── Profile Tab ─── */}
-      {activeTab === 'profile' && (
+      <div className="bg-[#f6f7f8] p-4 sm:p-5">
+      {activeTab === 'you' && (
         <div className="space-y-5">
-          {/* Photo */}
-          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
-            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Profile Photo</h3>
-            <div className="flex items-center gap-5">
-              {agentProfile.photoBase64 ? (
-                <img
-                  src={`data:image/jpeg;base64,${agentProfile.photoBase64}`}
-                  alt="Profile"
-                  className="w-20 h-20 rounded-full object-cover border-2 border-[#45bcaa]"
-                />
-              ) : (
-                <div className="w-20 h-20 rounded-full bg-[#44bbaa] flex items-center justify-center text-white text-2xl font-bold">
-                  {agentProfile.name?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase() || 'A'}
-                </div>
-              )}
-              <div>
-                <input
-                  ref={photoInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={async (e) => {
-                    const f = e.target.files?.[0];
-                    if (!f) return;
-                    try {
-                      const dataUrl = await readFileAsDataUrl(f);
-                      setCropImageSrc(dataUrl);
-                      setCrop({ x: 0, y: 0 });
-                      setZoom(1);
-                    } catch {
-                      setSaveMessage({ type: 'error', text: 'Failed to read image. Please try a different file.' });
-                    }
-                    if (photoInputRef.current) photoInputRef.current.value = '';
-                  }}
-                />
-                <button
-                  data-onboarding-target="settings-photo-upload"
-                  onClick={() => photoInputRef.current?.click()}
-                  className="px-4 py-2 text-sm font-medium text-[#005851] border border-[#005851] rounded-[5px] hover:bg-[#005851] hover:text-white transition-colors"
-                >
-                  {agentProfile.photoBase64 ? 'Change Photo' : 'Upload Photo'}
-                </button>
-                <p className="text-xs text-[#707070] mt-1.5">Upload a photo and position it to fit. Stored securely.</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Name & Email */}
-          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
-            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Personal Info</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-[#000000] mb-1">Name</label>
-                <input
-                  data-onboarding-target="settings-name-input"
-                  type="text"
-                  value={agentProfile.name || ''}
-                  onChange={(e) => updateField('name', e.target.value)}
-                  placeholder="Your full name"
-                  className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-[#000000] mb-1">Email</label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="email"
-                    value={agentProfile.email || user?.email || ''}
-                    readOnly
-                    className="flex-1 px-3 py-2 rounded-[5px] border border-gray-200 bg-[#f5f5f5] text-[#707070] text-sm cursor-not-allowed"
-                  />
-                  <button
-                    onClick={() => { setActiveTab('account'); setShowEmailSection(true); }}
-                    className="px-3 py-2 text-xs font-medium text-[#005851] border border-[#005851] rounded-[5px] hover:bg-[#005851] hover:text-white transition-colors whitespace-nowrap"
-                  >
-                    Change
-                  </button>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-[#000000] mb-1">Phone Number</label>
-                <input
-                  data-onboarding-target="settings-phone-input"
-                  type="tel"
-                  value={agentProfile.phoneNumber || ''}
-                  onChange={(e) => updateField('phoneNumber', formatPhoneNumber(e.target.value))}
-                  placeholder="(555) 123-4567"
-                  className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]"
-                />
-              </div>
-              <div className="flex items-start justify-between gap-4 pt-2 border-t border-gray-100">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-[#000000]">Forward AFL texts to my cell</p>
-                  <p className="text-xs text-[#707070] mt-1">
-                    When a client or beneficiary texts your AFL line out of the blue (not part of a referral, conservation, or policy review the AI is already handling), we&rsquo;ll text you a copy at the number above so you can reply directly from your phone.
-                  </p>
-                </div>
-                <button
-                  onClick={() => updateField('forwardInboundSms', !(agentProfile.forwardInboundSms ?? true))}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${
-                    (agentProfile.forwardInboundSms ?? true) ? 'bg-[#44bbaa]' : 'bg-gray-300'
-                  }`}
-                  aria-label="Toggle AFL text forwarding"
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow ${
-                      (agentProfile.forwardInboundSms ?? true) ? 'translate-x-6' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Scheduling URL */}
-          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
-            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Scheduling Link</h3>
-            <div>
-              <input
-                type="url"
-                value={agentProfile.schedulingUrl || ''}
-                onChange={(e) => updateField('schedulingUrl', e.target.value)}
-                placeholder="https://calendly.com/your-name"
-                className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]"
-              />
-              {agentProfile.schedulingUrl && !agentProfile.schedulingUrl.startsWith('https://') && (
-                <p className="text-xs text-red-500 mt-1.5">URL must start with https://</p>
-              )}
-              {schedulingPlatform && (
-                <p className="text-xs text-[#45bcaa] mt-1.5 flex items-center gap-1">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  Detected: {schedulingPlatform}
-                </p>
-              )}
-              <p className="text-xs text-[#707070] mt-1.5">Supports Calendly, Cal.com, Acuity, and Google Calendar links.</p>
-            </div>
-          </div>
-
-          {/* NPN — single national producer number, read aloud for ID
-              verification on calls. Feeds the {agentnpn} dial-script token. */}
-          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
-            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-1">NPN</h3>
-            <p className="text-[11px] text-[#707070] mb-3">
-              Your National Producer Number. Auto-fills your dial script ({'{agentnpn}'}) so leads can verify you at the Dept. of Insurance.
-            </p>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={agentProfile.npn || ''}
-              onChange={(e) => updateField('npn', e.target.value.replace(/[^0-9]/g, ''))}
-              placeholder="e.g. 20775142"
-              className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]"
-            />
-          </div>
-
-          {/* State Licenses (Chunk 4d) — multi-state PDFs that the
-              booking-confirmation flow attaches based on lead.state. */}
-          <StateLicensesSection
+          <ProfileTab
+            agentProfile={agentProfile}
+            updateField={updateField}
             user={user}
-            licenses={agentProfile.licenses}
-            onChanged={() => { void refreshProfile(); }}
+            setSaveMessage={setSaveMessage}
+            onChangeEmail={() => { setActiveTab('account'); setShowEmailSection(true); }}
+            setCropImageSrc={setCropImageSrc}
+            setCrop={setCrop}
+            setZoom={setZoom}
+          />
+          <BrandingTab
+            agentProfile={agentProfile}
+            updateField={updateField}
+            handleImageUpload={handleImageUpload}
           />
         </div>
       )}
 
-      {/* ─── Branding Tab ─── */}
-      {activeTab === 'branding' && (
+      {activeTab === 'appointments' && (
+        <AppointmentsLeadsTab
+          view="appointments"
+          agentProfile={agentProfile}
+          updateField={updateField}
+          user={user}
+          setAgentProfile={setAgentProfile}
+          setSaveMessage={setSaveMessage}
+          googleCalendarStatus={googleCalendarStatus}
+        />
+      )}
+
+      {activeTab === 'leads' && (
         <div className="space-y-5">
-          {/* Agency Name */}
-          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
-            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Agency Name</h3>
-            <input
-              data-onboarding-target="settings-agency-input"
-              type="text"
-              value={agentProfile.agencyName || ''}
-              onChange={(e) => updateField('agencyName', e.target.value)}
-              placeholder="Your Agency Name"
-              className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]"
-            />
-          </div>
-
-          {/* Agency Logo */}
-          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
-            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Agency Logo</h3>
-            {agentProfile.agencyLogoBase64 ? (
-              <div className="flex items-center gap-5">
-                <img
-                  src={`data:image/jpeg;base64,${agentProfile.agencyLogoBase64}`}
-                  alt="Agency logo"
-                  className="w-24 h-24 rounded-[5px] object-contain border border-gray-200 bg-[#f5f5f5] p-2"
-                />
-                <div className="flex flex-col gap-2">
-                  <input
-                    ref={logoInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) handleImageUpload(f, 200, 'agencyLogoBase64');
-                    }}
-                  />
-                  <button
-                    data-onboarding-target="settings-logo-upload"
-                    onClick={() => logoInputRef.current?.click()}
-                    className="px-4 py-2 text-sm font-medium text-[#005851] border border-[#005851] rounded-[5px] hover:bg-[#005851] hover:text-white transition-colors"
-                  >
-                    Change Logo
-                  </button>
-                  <button
-                    onClick={() => updateField('agencyLogoBase64', undefined)}
-                    className="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-[5px] hover:bg-red-50 transition-colors"
-                  >
-                    Remove Logo
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div>
-                <input
-                  ref={logoInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) handleImageUpload(f, 200, 'agencyLogoBase64');
-                  }}
-                />
-                <button
-                  data-onboarding-target="settings-logo-upload"
-                  onClick={() => logoInputRef.current?.click()}
-                  className="w-full py-8 border-2 border-dashed border-gray-300 rounded-[5px] text-[#707070] text-sm hover:border-[#45bcaa] hover:text-[#005851] transition-colors flex flex-col items-center gap-2"
-                >
-                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                  Upload Agency Logo
-                </button>
-                <p className="text-xs text-[#707070] mt-1.5">Resized to 200px. Displayed in your client app.</p>
-              </div>
-            )}
-          </div>
-
-          {/* Business Card */}
-          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
-            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Business Card</h3>
-            {agentProfile.businessCardBase64 ? (
-              <div className="space-y-3">
-                <img
-                  src={`data:image/jpeg;base64,${agentProfile.businessCardBase64}`}
-                  alt="Business card"
-                  className="w-full max-w-sm rounded-[5px] border border-gray-200"
-                />
-                <input
-                  ref={cardInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) handleImageUpload(f, 800, 'businessCardBase64');
-                  }}
-                />
-                <button
-                  onClick={() => cardInputRef.current?.click()}
-                  className="px-4 py-2 text-sm font-medium text-[#005851] border border-[#005851] rounded-[5px] hover:bg-[#005851] hover:text-white transition-colors"
-                >
-                  Replace Card
-                </button>
-              </div>
-            ) : (
-              <div>
-                <input
-                  ref={cardInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) handleImageUpload(f, 800, 'businessCardBase64');
-                  }}
-                />
-                <button
-                  onClick={() => cardInputRef.current?.click()}
-                  className="w-full py-8 border-2 border-dashed border-gray-300 rounded-[5px] text-[#707070] text-sm hover:border-[#45bcaa] hover:text-[#005851] transition-colors flex flex-col items-center gap-2"
-                >
-                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                  </svg>
-                  Upload Business Card
-                </button>
-                <p className="text-xs text-[#707070] mt-1.5">Resized to 800px. Shown in your client-facing app.</p>
-              </div>
-            )}
-          </div>
+          <MessagesTab
+            view="dialer"
+            agentProfile={agentProfile}
+            updateField={updateField}
+            user={user}
+          />
+          <AppointmentsLeadsTab
+            view="leads"
+            agentProfile={agentProfile}
+            updateField={updateField}
+            user={user}
+            setAgentProfile={setAgentProfile}
+            setSaveMessage={setSaveMessage}
+            googleCalendarStatus={googleCalendarStatus}
+          />
         </div>
       )}
 
-      {/* ─── Referral & AI Tab ─── */}
-      {activeTab === 'referral-ai' && (
-        <div className="space-y-5">
-          {/* AI Assistant */}
-          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
-            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">AI Assistant</h3>
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1">
-                <p className="text-sm font-medium text-[#000000]">
-                  {agentProfile.aiAssistantEnabled !== false ? 'Enabled' : 'Disabled'}
-                </p>
-                <p className="text-xs text-[#707070] mt-1">
-                  {agentProfile.aiAssistantEnabled !== false
-                    ? 'The AI assistant will automatically draft referral outreach messages, conservation scripts, and anniversary check-ins for you.'
-                    : 'AI features are off. You\'ll compose all outreach and follow-up messages manually.'}
-                </p>
-              </div>
-              <button
-                onClick={() => updateField('aiAssistantEnabled', !agentProfile.aiAssistantEnabled)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${
-                  agentProfile.aiAssistantEnabled !== false ? 'bg-[#44bbaa]' : 'bg-gray-300'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow ${
-                    agentProfile.aiAssistantEnabled !== false ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </div>
-          </div>
-
-          {/* Referral Message */}
-          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
-            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Referral Message Template</h3>
-            <textarea
-              value={agentProfile.referralMessage || ''}
-              onChange={(e) => updateField('referralMessage', e.target.value)}
-              placeholder="Hey [referral], wanted to connect you with my insurance agent [agent]. They just got my family's finances protected and I thought they might be able to help you too. They'll probably reach out — super easy to talk to."
-              rows={4}
-              className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa] resize-none"
-            />
-            <div className="flex flex-wrap gap-2 mt-2">
-              {['[referral]', '[agent]', '[client]'].map((tag) => (
-                <span
-                  key={tag}
-                  className="inline-flex items-center px-2 py-0.5 rounded bg-[#daf3f0] text-[#005851] text-xs font-medium"
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
-            <p className="text-xs text-[#707070] mt-1.5">Unless you change it, this is the default message clients send when they refer someone. Use the placeholders above; they&rsquo;re replaced with real names when sent.</p>
-          </div>
-
-          {/* Client Welcome Text */}
-          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
-            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Client Welcome Text</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-[#000000] mb-1.5">Message Template</label>
-                <textarea
-                  value={agentProfile.welcomeSmsTemplate || ''}
-                  onChange={(e) => updateField('welcomeSmsTemplate', e.target.value)}
-                  placeholder={"Hey {{firstName}}! {{agentName}} here — let's get you set up (takes a minute):\n\n1. Download the app: https://agentforlife.app/app\n2. Open it and enter your code: {{code}}\n3. Tap Allow on notifications so I can reach you with important updates\n4. Tap Activate, then Send — I'll text you right back\n\nThat's it! Your app's already personalized for you. 👍"}
-                  rows={8}
-                  className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa] resize-y"
-                />
-                <p className="text-xs text-[#707070] mt-1.5">
-                  Used for client welcome texts when you add a client (including single-PDF create).
-                  Leave blank to use the default message.
-                </p>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {['{{firstName}}', '{{code}}', '{{agentName}}'].map((tag) => (
-                    <span
-                      key={tag}
-                      className="inline-flex items-center px-2 py-0.5 rounded bg-[#daf3f0] text-[#005851] text-xs font-medium"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-[#000000]">Skip Warning on Single-PDF Create</p>
-                  <p className="text-xs text-[#707070] mt-1">
-                    When on, creating a client from a single PDF auto-sends the welcome text immediately (no confirmation step).
-                  </p>
-                </div>
-                <button
-                  onClick={() => updateField('skipWelcomeSmsConfirmation', !(agentProfile.skipWelcomeSmsConfirmation ?? false))}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${
-                    (agentProfile.skipWelcomeSmsConfirmation ?? false) ? 'bg-[#44bbaa]' : 'bg-gray-300'
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow ${
-                      (agentProfile.skipWelcomeSmsConfirmation ?? false) ? 'translate-x-6' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Holiday Cards */}
-          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
-            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Holiday Cards</h3>
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1">
-                <p className="text-sm font-medium text-[#000000]">Auto-Send Holiday Cards</p>
-                <p className="text-xs text-[#707070] mt-1">
-                  Automatically send branded holiday greetings to all your clients during major holidays.
-                </p>
-              </div>
-              <button
-                onClick={() => updateField('autoHolidayCards', !agentProfile.autoHolidayCards)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${
-                  agentProfile.autoHolidayCards ? 'bg-[#44bbaa]' : 'bg-gray-300'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow ${
-                    agentProfile.autoHolidayCards ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </div>
-          </div>
-
-          {/* Anniversary Message Style */}
-          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
-            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Anniversary Message Style</h3>
-            <p className="text-xs text-[#707070] mb-3">Choose how your 1-year policy anniversary messages are framed.</p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <button
-                onClick={() => updateField('anniversaryMessageStyle', 'check_in')}
-                className={`p-4 rounded-[5px] border-2 text-left transition-colors ${
-                  (agentProfile.anniversaryMessageStyle || 'check_in') === 'check_in'
-                    ? 'border-[#44bbaa] bg-[#f0faf8]'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <div className="flex items-center gap-2 mb-2">
-                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                    (agentProfile.anniversaryMessageStyle || 'check_in') === 'check_in'
-                      ? 'border-[#44bbaa]'
-                      : 'border-gray-300'
-                  }`}>
-                    {(agentProfile.anniversaryMessageStyle || 'check_in') === 'check_in' && (
-                      <div className="w-2 h-2 rounded-full bg-[#44bbaa]" />
-                    )}
-                  </div>
-                  <span className="text-sm font-semibold text-[#000000]">Friendly Check-In</span>
-                </div>
-                <p className="text-xs text-[#707070]">
-                  A warm, relationship-first message celebrating the milestone and asking how things are going.
-                </p>
-              </button>
-              <button
-                onClick={() => updateField('anniversaryMessageStyle', 'lower_price')}
-                className={`p-4 rounded-[5px] border-2 text-left transition-colors ${
-                  agentProfile.anniversaryMessageStyle === 'lower_price'
-                    ? 'border-[#44bbaa] bg-[#f0faf8]'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <div className="flex items-center gap-2 mb-2">
-                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                    agentProfile.anniversaryMessageStyle === 'lower_price'
-                      ? 'border-[#44bbaa]'
-                      : 'border-gray-300'
-                  }`}>
-                    {agentProfile.anniversaryMessageStyle === 'lower_price' && (
-                      <div className="w-2 h-2 rounded-full bg-[#44bbaa]" />
-                    )}
-                  </div>
-                  <span className="text-sm font-semibold text-[#000000]">Rate Review</span>
-                </div>
-                <p className="text-xs text-[#707070]">
-                  Proactively offer to shop for a better rate, positioning you as someone who saves them money.
-                </p>
-              </button>
-              <button
-                onClick={() => updateField('anniversaryMessageStyle', 'custom')}
-                className={`p-4 rounded-[5px] border-2 text-left transition-colors ${
-                  agentProfile.anniversaryMessageStyle === 'custom'
-                    ? 'border-[#44bbaa] bg-[#f0faf8]'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <div className="flex items-center gap-2 mb-2">
-                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                    agentProfile.anniversaryMessageStyle === 'custom'
-                      ? 'border-[#44bbaa]'
-                      : 'border-gray-300'
-                  }`}>
-                    {agentProfile.anniversaryMessageStyle === 'custom' && (
-                      <div className="w-2 h-2 rounded-full bg-[#44bbaa]" />
-                    )}
-                  </div>
-                  <span className="text-sm font-semibold text-[#000000]">Custom Message</span>
-                </div>
-                <p className="text-xs text-[#707070]">
-                  Write your own message that goes out automatically to every client at their policy anniversary.
-                </p>
-              </button>
-            </div>
-            {agentProfile.anniversaryMessageStyle === 'custom' && (
-              <div className="mt-4 space-y-3">
-                <div>
-                  <label className="block text-xs font-medium text-[#000000] mb-1">Push Notification Title <span className="text-[#707070] font-normal">(optional)</span></label>
-                  <input
-                    type="text"
-                    value={agentProfile.anniversaryMessageCustomTitle || ''}
-                    onChange={(e) => updateField('anniversaryMessageCustomTitle', e.target.value)}
-                    placeholder="Policy Review"
-                    className="w-full px-3 py-2 border border-gray-200 rounded-[5px] text-sm text-[#000000] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#44bbaa] focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-[#000000] mb-1">Message Template</label>
-                  <textarea
-                    value={agentProfile.anniversaryMessageCustom || ''}
-                    onChange={(e) => updateField('anniversaryMessageCustom', e.target.value)}
-                    placeholder={`Hi {{firstName}}, your {{policyLabel}} anniversary is coming up. I'd love to check in and make sure everything still fits. — {{agentName}}`}
-                    rows={4}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-[5px] text-sm text-[#000000] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#44bbaa] focus:border-transparent resize-y"
-                  />
-                  {agentProfile.anniversaryMessageStyle === 'custom' && !agentProfile.anniversaryMessageCustom?.trim() && (
-                    <p className="text-xs text-amber-600 mt-1">Please enter a message template before saving.</p>
-                  )}
-                </div>
-                <div className="bg-[#f8fafb] rounded-[5px] p-3 border border-gray-100">
-                  <p className="text-xs font-medium text-[#005851] mb-1.5">Available Placeholders</p>
-                  <div className="grid grid-cols-2 gap-1.5 text-xs text-[#707070]">
-                    <span><code className="bg-white px-1 py-0.5 rounded border border-gray-200 text-[#005851]">{`{{firstName}}`}</code> Client first name</span>
-                    <span><code className="bg-white px-1 py-0.5 rounded border border-gray-200 text-[#005851]">{`{{policyLabel}}`}</code> Policy description</span>
-                    <span><code className="bg-white px-1 py-0.5 rounded border border-gray-200 text-[#005851]">{`{{agentName}}`}</code> Your name</span>
-                    <span><code className="bg-white px-1 py-0.5 rounded border border-gray-200 text-[#005851]">{`{{schedulingNote}}`}</code> Scheduling link</span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Rewrite campaigns (policy review AI) */}
-          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
-            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Rewrite Campaigns</h3>
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1">
-                <p className="text-sm font-medium text-[#000000]">
-                  {agentProfile.policyReviewAIEnabled !== false ? 'Enabled' : 'Disabled'}
-                </p>
-                <p className="text-xs text-[#707070] mt-1">
-                  {agentProfile.policyReviewAIEnabled !== false
-                    ? 'When a policy hits its 1-year anniversary, AI will automatically reach out to your client to schedule a review call. ROP and Graded policies are always skipped.'
-                    : 'Anniversary review campaigns are off. You\'ll need to reach out to clients manually for policy reviews.'}
-                </p>
-              </div>
-              <button
-                onClick={() => updateField('policyReviewAIEnabled', !(agentProfile.policyReviewAIEnabled !== false))}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${
-                  agentProfile.policyReviewAIEnabled !== false ? 'bg-[#44bbaa]' : 'bg-gray-300'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow ${
-                    agentProfile.policyReviewAIEnabled !== false ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </div>
-          </div>
-        </div>
+      {activeTab === 'messages' && (
+        <MessagesTab
+          view="messages"
+          agentProfile={agentProfile}
+          updateField={updateField}
+          user={user}
+        />
       )}
 
-      {/* ─── Account Tab ─── */}
       {activeTab === 'account' && (
-        <div className="space-y-5">
-          {/* Invite Agents */}
-          <InviteAgentsCard />
-
-          {/* Subscription */}
-          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
-            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Subscription</h3>
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  {(() => {
-                    // Status chip. A no-card trial agent (Entry-mechanism
-                    // cutover) has no `subscriptionStatus`, so without a
-                    // trial branch they'd show an amber "Unknown". Instead
-                    // show a teal "Trial · N days left" — the countdown is
-                    // folded in here so the no-card trial only renders one
-                    // chip (the separate countdown below skips trial tier).
-                    // The post-trial Free tier (Phase 2 day-14 default) is
-                    // likewise not a subscription, so it gets its own neutral
-                    // "Free" chip rather than the amber "Unknown" fallback.
-                    const isActive = agentProfile.subscriptionStatus === 'active';
-                    const isTrial = !isActive && agentProfile.membershipTier === 'trial';
-                    const isFree = !isActive && !isTrial && agentProfile.membershipTier === 'free';
-                    const trialEndMs = agentProfile.trialEndsAt;
-                    const trialDaysLeft =
-                      isTrial && typeof trialEndMs === 'number'
-                        ? Math.ceil((trialEndMs - Date.now()) / (1000 * 60 * 60 * 24))
-                        : null;
-                    const cls = isActive
-                      ? 'bg-green-100 text-green-700'
-                      : isTrial
-                        ? 'bg-[#daf3f0] text-[#005851]'
-                        : isFree
-                          ? 'bg-gray-100 text-gray-600'
-                          : 'bg-amber-100 text-amber-700';
-                    let label: string;
-                    if (isActive) label = 'Active';
-                    else if (isTrial) {
-                      label =
-                        trialDaysLeft && trialDaysLeft > 0
-                          ? `Trial · ${trialDaysLeft === 1 ? '1 day left' : `${trialDaysLeft} days left`}`
-                          : 'Trial';
-                    } else if (isFree) label = 'Free';
-                    else label = agentProfile.subscriptionStatus || 'Unknown';
-                    return (
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${cls}`}>
-                        {label}
-                      </span>
-                    );
-                  })()}
-                  {agentProfile.isFoundingMember && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-sm bg-gradient-to-b from-[#f5d976] via-[#e2b93b] to-[#c99a2e] text-[#5c3a0a] text-[10px] font-extrabold uppercase tracking-wider border border-[#c99a2e]">
-                      Founding Member
-                    </span>
-                  )}
-                  {(() => {
-                    // Stripe-native trial countdown (e.g. Growth's 14-day
-                    // trial on a paid SKU). `trialEndsAt` is normalized to
-                    // epoch millis in DashboardContext. The no-card trial
-                    // folds its countdown into the status chip above, so
-                    // skip here for `membershipTier === 'trial'` to avoid a
-                    // duplicate "Trial" chip.
-                    if (agentProfile.membershipTier === 'trial') return null;
-                    const trialEndMs = agentProfile.trialEndsAt;
-                    if (typeof trialEndMs !== 'number') return null;
-                    const daysLeft = Math.ceil((trialEndMs - Date.now()) / (1000 * 60 * 60 * 24));
-                    if (daysLeft <= 0) return null;
-                    return (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[10px] font-bold uppercase tracking-wide border border-amber-200">
-                        Trial · {daysLeft === 1 ? '1 day left' : `${daysLeft} days left`}
-                      </span>
-                    );
-                  })()}
-                </div>
-                {(() => {
-                  // Display the agent's actual tier and price. Stripe webhook
-                  // writes `membershipTier` on subscription.created/updated
-                  // (web/app/api/webhooks/stripe/route.ts).
-                  const tier = (agentProfile as Record<string, unknown>).membershipTier;
-                  if (typeof tier === 'string' && tier in PRICING_TIERS) {
-                    const info = PRICING_TIERS[tier as PricingTierId];
-                    return (
-                      <p className="text-sm text-[#707070] mt-1">
-                        {info.name} &middot; ${info.priceMonthly}/mo
-                      </p>
-                    );
-                  }
-                  // Founding members are on grandfathered legacy SKUs (archived
-                  // post-Track-C). Keep their existing display in place.
-                  if (agentProfile.isFoundingMember) {
-                    return (
-                      <p className="text-sm text-[#707070] mt-1">
-                        Founding Member &middot; grandfathered plan
-                      </p>
-                    );
-                  }
-                  return (
-                    <p className="text-sm text-[#707070] mt-1">
-                      Plan details &mdash; tap Manage for billing portal
-                    </p>
-                  );
-                })()}
-              </div>
-              {agentProfile.stripeCustomerId && (
-                <button
-                  onClick={() => setShowCancelWarning(true)}
-                  disabled={portalLoading}
-                  className="px-4 py-2 text-sm font-medium text-[#005851] border border-[#005851] rounded-[5px] hover:bg-[#005851] hover:text-white transition-colors disabled:opacity-50"
-                >
-                  {portalLoading ? 'Opening...' : 'Manage'}
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Google Drive */}
-          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
-            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Google Drive</h3>
-            {googleDriveLoading ? (
-              <p className="text-sm text-[#707070]">Checking connection...</p>
-            ) : googleDriveStatus ? (
-              <div className="space-y-3">
-                <div className="rounded-[5px] border border-[#45bcaa]/30 bg-[#daf3f0]/40 px-3 py-2">
-                  <p className="text-sm font-medium text-[#005851]">Connected</p>
-                  <p className="text-xs text-[#005851]/80 mt-0.5">
-                    {googleDriveStatus.googleEmail || 'Google account connected'}
-                  </p>
-                </div>
-                <button
-                  onClick={handleGoogleDriveDisconnect}
-                  disabled={googleDriveDisconnecting}
-                  className="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-[5px] hover:bg-red-50 transition-colors disabled:opacity-50"
-                >
-                  {googleDriveDisconnecting ? 'Disconnecting...' : 'Disconnect'}
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <p className="text-sm text-[#707070]">
-                  Connect Google Drive to browse and import application PDFs without downloading files first.
-                </p>
-                <button
-                  onClick={handleGoogleDriveConnect}
-                  disabled={googleDriveConnecting}
-                  className="px-4 py-2 text-sm font-medium text-white bg-[#005851] rounded-[5px] hover:bg-[#004440] transition-colors disabled:opacity-50"
-                >
-                  {googleDriveConnecting ? 'Redirecting...' : 'Connect Google Drive'}
-                </button>
-              </div>
-            )}
-            {googleDriveError && (
-              <p className="text-xs text-red-600 mt-3">{googleDriveError}</p>
-            )}
-          </div>
-
-          {/* Google Calendar */}
-          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
-            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Google Calendar</h3>
-            {googleCalendarLoading ? (
-              <p className="text-sm text-[#707070]">Checking connection...</p>
-            ) : googleCalendarStatus ? (
-              <div className="space-y-3">
-                <div className="rounded-[5px] border border-[#45bcaa]/30 bg-[#daf3f0]/40 px-3 py-2">
-                  <p className="text-sm font-medium text-[#005851]">Connected</p>
-                  <p className="text-xs text-[#005851]/80 mt-0.5">
-                    {googleCalendarStatus.googleEmail || 'Google account connected'}
-                  </p>
-                </div>
-                <button
-                  onClick={handleGoogleCalendarDisconnect}
-                  disabled={googleCalendarDisconnecting}
-                  className="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-[5px] hover:bg-red-50 transition-colors disabled:opacity-50"
-                >
-                  {googleCalendarDisconnecting ? 'Disconnecting...' : 'Disconnect'}
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <p className="text-sm text-[#707070]">
-                  Connect Google Calendar to push your AFL appointments to your calendar app, with native device reminders.
-                </p>
-                <button
-                  onClick={handleGoogleCalendarConnect}
-                  disabled={googleCalendarConnecting}
-                  className="px-4 py-2 text-sm font-medium text-white bg-[#005851] rounded-[5px] hover:bg-[#004440] transition-colors disabled:opacity-50"
-                >
-                  {googleCalendarConnecting ? 'Redirecting...' : 'Connect Google Calendar'}
-                </button>
-              </div>
-            )}
-            {googleCalendarError && (
-              <p className="text-xs text-red-600 mt-3">{googleCalendarError}</p>
-            )}
-          </div>
-
-          {/* Appointment defaults — phone vs video, default meeting link, auto-Meet */}
-          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
-            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Appointments</h3>
-
-            <div className="mb-4">
-              <label className="block text-xs font-semibold text-[#374151] mb-2">
-                Most of your appointments are:
-              </label>
-              <div className="inline-flex rounded-[5px] border border-[#d0d0d0] overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => updateField('appointmentMode', 'phone')}
-                  className={`px-4 py-2 text-sm font-semibold transition-colors ${
-                    (agentProfile.appointmentMode || 'phone') === 'phone'
-                      ? 'bg-[#005851] text-white'
-                      : 'bg-white text-[#0D4D4D] hover:bg-[#f8f8f8]'
-                  }`}
-                >
-                  Phone
-                </button>
-                <button
-                  type="button"
-                  onClick={() => updateField('appointmentMode', 'video')}
-                  className={`px-4 py-2 text-sm font-semibold transition-colors border-l border-[#d0d0d0] ${
-                    agentProfile.appointmentMode === 'video'
-                      ? 'bg-[#005851] text-white'
-                      : 'bg-white text-[#0D4D4D] hover:bg-[#f8f8f8]'
-                  }`}
-                >
-                  Video
-                </button>
-              </div>
-              <p className="text-[11px] text-[#707070] mt-1.5">
-                Sets the default when you book — you can override per appointment.
-              </p>
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-xs font-semibold text-[#374151] mb-2">
-                Send booking confirmations by:
-              </label>
-              <div className="inline-flex rounded-[5px] border border-[#d0d0d0] overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => updateField('confirmationChannel', 'text')}
-                  className={`px-4 py-2 text-sm font-semibold transition-colors ${
-                    (agentProfile.confirmationChannel || 'text') === 'text'
-                      ? 'bg-[#005851] text-white'
-                      : 'bg-white text-[#0D4D4D] hover:bg-[#f8f8f8]'
-                  }`}
-                >
-                  Text
-                </button>
-                <button
-                  type="button"
-                  onClick={() => updateField('confirmationChannel', 'email')}
-                  className={`px-4 py-2 text-sm font-semibold transition-colors border-l border-[#d0d0d0] ${
-                    agentProfile.confirmationChannel === 'email'
-                      ? 'bg-[#005851] text-white'
-                      : 'bg-white text-[#0D4D4D] hover:bg-[#f8f8f8]'
-                  }`}
-                >
-                  Email
-                </button>
-              </div>
-              <p className="text-[11px] text-[#707070] mt-1.5">
-                Your default when you send a confirmation — switchable per send. Email goes out from AgentForLife with your name, and replies come back to your inbox.
-              </p>
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-xs font-semibold text-[#374151] mb-1">
-                Auto push-reminder timing
-              </label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min={0}
-                  max={24}
-                  value={agentProfile.reminderPushHoursBefore ?? 1}
-                  onChange={(e) => {
-                    const v = e.target.value === '' ? 1 : Number(e.target.value);
-                    updateField('reminderPushHoursBefore', Number.isFinite(v) ? v : 1);
-                  }}
-                  className="w-20 px-3 py-2 bg-white border border-[#d0d0d0] rounded-[5px] text-sm focus:outline-none focus:border-[#45bcaa]"
-                />
-                <span className="text-sm text-[#374151]">hours before the appointment</span>
-              </div>
-              <p className="text-[11px] text-[#707070] mt-1">
-                If the lead has downloaded your app, AFL will auto-push a reminder this far before the appointment. Set to 0 to disable.
-              </p>
-            </div>
-
-            {agentProfile.appointmentMode === 'video' && (
-              <>
-                <div className="mb-4">
-                  <label className="block text-xs font-semibold text-[#374151] mb-1">
-                    Default meeting link
-                  </label>
-                  <input
-                    type="url"
-                    value={agentProfile.defaultMeetingLink || ''}
-                    onChange={(e) => updateField('defaultMeetingLink', e.target.value)}
-                    placeholder="https://zoom.us/j/123… or https://meet.google.com/abc-xyz"
-                    className="w-full px-3 py-2 bg-white border border-[#d0d0d0] rounded-[5px] text-sm focus:outline-none focus:border-[#45bcaa]"
-                  />
-                  <p className="text-[11px] text-[#707070] mt-1">
-                    Your Zoom personal room or permanent Meet room. Used unless &quot;auto-create Google Meet&quot; is on.
-                  </p>
-                </div>
-
-                <label className="flex items-start gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={agentProfile.autoCreateGoogleMeet ?? false}
-                    onChange={(e) => updateField('autoCreateGoogleMeet', e.target.checked)}
-                    className="mt-0.5"
-                  />
-                  <span className="text-sm text-[#374151] leading-snug">
-                    Auto-create a unique Google Meet link for every video appointment
-                    {!googleCalendarStatus && (
-                      <span className="block text-[11px] text-amber-700 mt-0.5">
-                        Requires Google Calendar connection (above).
-                      </span>
-                    )}
-                  </span>
-                </label>
-              </>
-            )}
-          </div>
-
-          {/* Lead-mode-gated settings: Dial script + Dial persistence
-              + Lead-home videos. All three control surfaces that only
-              exist when the agent can actually access Leads — gated by
-              the global flag + admin-only mode + tier (Pro+). See
-              web/lib/tier-gating.ts. Hides entirely from Settings
-              otherwise; reappears the moment any axis of the gate
-              opens (env flip, admin grant, tier upgrade). */}
-          {canAccessLeads(agentProfile.membershipTier, user?.email, agentProfile.trialEndsAt) && <>
-          {/* Dial script — shown as an overlay on the lead detail page
-              during a live call. Supports tokens like {agentfirstname},
-              {leadname}, {leadage}, {tobaccouse}, {mortgageamount}. */}
-          <div id="dial-script" className="scroll-mt-24 bg-white rounded-[5px] border border-gray-200 p-5">
-            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-1">Dial script</h3>
-            <p className="text-[11px] text-[#707070] mb-3">
-              Shown on the lead page while you&apos;re on a call. Personalized per lead via tokens.
-            </p>
-            <textarea
-              value={agentProfile.dialScript ?? ''}
-              onChange={(e) => updateField('dialScript', e.target.value)}
-              placeholder={DEFAULT_DIAL_SCRIPT}
-              rows={10}
-              className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm leading-relaxed font-mono focus:outline-none focus:border-[#45bcaa]"
-            />
-            <p className="text-[11px] text-[#707070] mt-2">
-              Leave empty to use the default. Tokens are case-insensitive.
-            </p>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {SCRIPT_TOKEN_HINTS.map((t) => (
-                <span
-                  key={t.token}
-                  title={t.description}
-                  className="inline-block px-2 py-0.5 text-[10px] font-mono rounded bg-[#daf3f0]/60 text-[#005851] border border-[#45bcaa]/30 cursor-help"
-                >
-                  {t.token}
-                </span>
-              ))}
-            </div>
-            <p className="text-[11px] text-[#707070] mt-3 mb-1">
-              Auto-switching blocks — show/hide based on the lead and your settings:
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {SCRIPT_CONDITION_HINTS.map((t) => (
-                <span
-                  key={t.token}
-                  title={t.description}
-                  className="inline-block px-2 py-0.5 text-[10px] font-mono rounded bg-[#FEF3C7]/70 text-[#92400E] border border-[#FCD34D]/60 cursor-help"
-                >
-                  {t.token}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {/* Dial persistence — how many attempts on a lead before the
-              call queue auto-advances. Transient outcomes (no answer,
-              voicemail) count toward the threshold; terminal outcomes
-              (booked, do_not_call, not_interested, wrong_number,
-              callback_requested) always advance regardless. */}
-          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
-            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-1">Dial persistence</h3>
-            <p className="text-[11px] text-[#707070] mb-3">
-              How many times to dial a lead before the call queue moves on. Counts no-answer and voicemail outcomes; booked / wrong-number / not-interested / do-not-call / callback always advance immediately.
-            </p>
-            <div className="inline-flex rounded-[5px] border border-[#d0d0d0] overflow-hidden">
-              {([
-                { v: 1, label: 'Single', sub: '1 attempt' },
-                { v: 2, label: 'Double', sub: '2 attempts' },
-                { v: 3, label: 'Triple', sub: '3 attempts' },
-              ] as const).map((opt, idx) => {
-                const active = (agentProfile.dialPersistence ?? 1) === opt.v;
-                return (
-                  <button
-                    key={opt.v}
-                    type="button"
-                    onClick={() => updateField('dialPersistence', opt.v)}
-                    className={`px-4 py-2 text-sm font-semibold transition-colors text-left ${idx > 0 ? 'border-l border-[#d0d0d0]' : ''} ${
-                      active
-                        ? 'bg-[#005851] text-white'
-                        : 'bg-white text-[#0D4D4D] hover:bg-[#f8f8f8]'
-                    }`}
-                  >
-                    <div>{opt.label}</div>
-                    <div className={`text-[10px] font-normal ${active ? 'text-white/70' : 'text-[#707070]'}`}>
-                      {opt.sub}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Lead-home videos (Chunk 3). Per-agent overrides for the
-              intro / FAQ / case-study slots rendered in the mobile
-              lead-home screen. */}
-          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
-            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-1">Lead-home videos</h3>
-            <p className="text-[11px] text-[#707070] mb-4">
-              These videos play in your leads&apos; AFL app after they log in with their phone code. Without uploads the lead-home looks empty.
-            </p>
-
-            {/* Intro slot */}
-            <div className="mb-5 pb-5 border-b border-[#ececec]">
-              <div className="flex items-center justify-between mb-1">
-                <h4 className="text-xs font-semibold text-[#374151]">Intro video</h4>
-                {agentProfile.leadContent?.intro?.url && (
-                  <button
-                    type="button"
-                    onClick={() => deleteLeadVideo('intro')}
-                    disabled={leadVideoBusy === 'intro'}
-                    className="text-[11px] text-red-600 hover:text-red-800 font-semibold disabled:opacity-50"
-                  >
-                    Remove
-                  </button>
-                )}
-              </div>
-              {agentProfile.leadContent?.intro?.url ? (
-                <div className="rounded-[5px] border border-[#45bcaa]/30 bg-[#daf3f0]/40 px-3 py-2 mb-3">
-                  <p className="text-sm font-medium text-[#005851]">
-                    {agentProfile.leadContent.intro.title || 'Uploaded'}
-                  </p>
-                  <a
-                    href={agentProfile.leadContent.intro.iframeUrl || agentProfile.leadContent.intro.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[11px] text-[#44bbaa] hover:text-[#005751] font-semibold"
-                  >
-                    Preview →
-                  </a>
-                </div>
-              ) : (
-                <p className="text-[11px] text-[#707070] mb-2">Not uploaded yet.</p>
-              )}
-              {/* Title input — shown to the agent so the intro card on
-                  the lead-home isn't stuck on the platform default
-                  ("Welcome — what to do next"). Empty input falls back
-                  to that default on upload. Pre-fills from whatever's
-                  saved so the agent can edit-then-replace. */}
-              <label className="block text-[11px] font-semibold text-[#374151] mb-1">
-                Card title <span className="text-[#707070] font-normal">(optional)</span>
-              </label>
-              <input
-                type="text"
-                value={introTitleDraft || agentProfile.leadContent?.intro?.title || ''}
-                onChange={(e) => setIntroTitleDraft(e.target.value)}
-                placeholder="Welcome — what to do next"
-                maxLength={120}
-                className="w-full px-3 py-2 text-sm border border-[#d0d0d0] rounded-[5px] focus:outline-none focus:border-[#45bcaa] mb-2"
-              />
-              <label className="inline-block mt-1">
-                <input
-                  type="file"
-                  accept="video/mp4,video/quicktime,video/webm"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) {
-                      const title =
-                        introTitleDraft.trim() ||
-                        agentProfile.leadContent?.intro?.title ||
-                        'Welcome — what to do next';
-                      void uploadLeadVideo({ file: f, slot: 'intro', title });
-                      e.currentTarget.value = '';
-                    }
-                  }}
-                />
-                <span className={`inline-block px-3 py-2 text-xs font-semibold rounded-[5px] cursor-pointer whitespace-nowrap ${
-                  leadVideoBusy === 'intro'
-                    ? 'bg-gray-200 text-gray-500 cursor-default'
-                    : 'bg-[#005851] hover:bg-[#004440] text-white'
-                }`}>
-                  {leadVideoBusy === 'intro'
-                    ? `Uploading… ${leadVideoProgress.intro ?? 0}%`
-                    : (agentProfile.leadContent?.intro?.url ? 'Replace' : 'Upload intro video')}
-                </span>
-              </label>
-
-              {/* App-link toggle (gated on a real intro video). Default
-                  ON for Pro+, but locked until the agent records an intro
-                  so booked leads never land on an empty prep page. When
-                  on, booking confirmations carry the app-download link +
-                  the lead's login code. */}
-              {(() => {
-                const hasIntro = Boolean(agentProfile.leadContent?.intro?.url?.trim());
-                return (
-                  <div className="mt-4 pt-4 border-t border-[#ececec]">
-                    <label className={`flex items-start gap-2 ${hasIntro ? 'cursor-pointer' : 'cursor-default'}`}>
-                      <input
-                        type="checkbox"
-                        disabled={!hasIntro}
-                        checked={hasIntro && agentProfile.includeAppAccessInConfirmations !== false}
-                        onChange={(e) => updateField('includeAppAccessInConfirmations', e.target.checked)}
-                        className="mt-0.5 disabled:opacity-40"
-                      />
-                      <span className="text-sm text-[#374151] leading-snug">
-                        Include my app link + the lead&apos;s login code in booking confirmations
-                        <span className={`block text-[11px] mt-0.5 ${hasIntro ? 'text-[#707070]' : 'text-amber-700'}`}>
-                          {hasIntro
-                            ? 'Booked leads get a one-tap link to your branded prep page — your intro video plus a couple of quick questions — before you ever meet.'
-                            : 'Record your intro video first (above) so leads see a warm welcome, not an empty page. This unlocks the moment your intro is uploaded.'}
-                        </span>
-                      </span>
-                    </label>
-                  </div>
-                );
-              })()}
-            </div>
-
-            {/* FAQs */}
-            <LeadVideoList
-              kind="faq"
-              label="FAQ videos"
-              items={agentProfile.leadContent?.faqs || []}
-              busyKey={leadVideoBusy}
-              addingProgress={leadVideoBusy?.startsWith('faq:') ? (leadVideoProgress[leadVideoBusy] ?? 0) : null}
-              onUpload={(file, slotId, title) => uploadLeadVideo({ file, slot: 'faq', slotId, title })}
-              onDelete={(slotId) => deleteLeadVideo('faq', slotId)}
-            />
-
-            {/* Case studies */}
-            <LeadVideoList
-              kind="caseStudy"
-              label="Case-study videos"
-              items={agentProfile.leadContent?.caseStudies || []}
-              busyKey={leadVideoBusy}
-              addingProgress={leadVideoBusy?.startsWith('caseStudy:') ? (leadVideoProgress[leadVideoBusy] ?? 0) : null}
-              onUpload={(file, slotId, title) => uploadLeadVideo({ file, slot: 'caseStudy', slotId, title })}
-              onDelete={(slotId) => deleteLeadVideo('caseStudy', slotId)}
-            />
-
-            {leadVideoError && (
-              <p className="text-xs text-red-600 mt-3">{leadVideoError}</p>
-            )}
-            <p className="text-[10px] text-[#707070] mt-3">
-              .mp4, .mov, or .webm. Up to 1 GB per video. Uploads stream directly to Bunny.net for transcoding and smooth playback on the lead-home screen.
-            </p>
-          </div>
-          </>}
-
-          {/* Email */}
-          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
-            <button
-              onClick={() => setShowEmailSection(!showEmailSection)}
-              className="w-full flex items-center justify-between"
-            >
-              <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide">Change Email</h3>
-              <svg
-                className={`w-5 h-5 text-[#707070] transition-transform ${showEmailSection ? 'rotate-180' : ''}`}
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-            {showEmailSection && (
-              <div className="mt-4 space-y-3">
-                <p className="text-xs text-[#707070]">
-                  This will update both your sign-in email and your profile email (used for conservation alerts, notifications, etc.).
-                </p>
-                <div>
-                  <label className="block text-sm font-medium text-[#000000] mb-1">Current Email</label>
-                  <input
-                    type="email"
-                    value={agentProfile.email || user?.email || ''}
-                    readOnly
-                    className="w-full px-3 py-2 rounded-[5px] border border-gray-200 bg-[#f5f5f5] text-[#707070] text-sm cursor-not-allowed"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-[#000000] mb-1">New Email</label>
-                  <input
-                    type="email"
-                    value={newEmail}
-                    onChange={(e) => setNewEmail(e.target.value)}
-                    placeholder="newemail@example.com"
-                    className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-[#000000] mb-1">Current Password</label>
-                  <input
-                    type="password"
-                    value={emailPassword}
-                    onChange={(e) => setEmailPassword(e.target.value)}
-                    placeholder="Enter your password to confirm"
-                    className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]"
-                  />
-                </div>
-                {emailError && <p className="text-sm text-red-600">{emailError}</p>}
-                {emailSuccess && <p className="text-sm text-green-600">{emailSuccess}</p>}
-                <button
-                  onClick={handleEmailChange}
-                  disabled={changingEmail || !newEmail.trim() || !emailPassword}
-                  className="px-4 py-2 text-sm font-medium bg-[#005851] text-white rounded-[5px] hover:bg-[#004440] transition-colors disabled:opacity-50"
-                >
-                  {changingEmail ? 'Updating...' : 'Update Email'}
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Password */}
-          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
-            <button
-              onClick={() => setShowPasswordSection(!showPasswordSection)}
-              className="w-full flex items-center justify-between"
-            >
-              <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide">Change Password</h3>
-              <svg
-                className={`w-5 h-5 text-[#707070] transition-transform ${showPasswordSection ? 'rotate-180' : ''}`}
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-            {showPasswordSection && (
-              <div className="mt-4 space-y-3">
-                <div>
-                  <label className="block text-sm font-medium text-[#000000] mb-1">Current Password</label>
-                  <input
-                    type="password"
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                    className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-[#000000] mb-1">New Password</label>
-                  <input
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-[#000000] mb-1">Confirm New Password</label>
-                  <input
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]"
-                  />
-                </div>
-                {passwordError && <p className="text-sm text-red-600">{passwordError}</p>}
-                {passwordSuccess && <p className="text-sm text-green-600">{passwordSuccess}</p>}
-                <button
-                  onClick={handlePasswordChange}
-                  disabled={changingPassword || !currentPassword || !newPassword || !confirmPassword}
-                  className="px-4 py-2 text-sm font-medium bg-[#005851] text-white rounded-[5px] hover:bg-[#004440] transition-colors disabled:opacity-50"
-                >
-                  {changingPassword ? 'Updating...' : 'Update Password'}
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Section Tips */}
-          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
-            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-2">Section Tips</h3>
-            <p className="text-sm text-[#707070] mb-3">Re-show the help tips that appear when you first visit each dashboard section.</p>
-            <button
-              onClick={async () => {
-                if (!user) return;
-                try {
-                  await setDoc(doc(db, 'agents', user.uid), { tipsSeen: {} }, { merge: true });
-                  setAgentProfile(prev => ({ ...prev, tipsSeen: {} }));
-                } catch (err) {
-                  console.error('Error resetting tips:', err);
-                }
-              }}
-              className="px-4 py-2 text-sm font-medium text-[#005851] border border-[#005851] rounded-[5px] hover:bg-[#005851] hover:text-white transition-colors"
-            >
-              Reset Tips
-            </button>
-          </div>
-        </div>
+        <AccountTab
+          agentProfile={agentProfile}
+          user={user}
+          setAgentProfile={setAgentProfile}
+          showEmailSection={showEmailSection}
+          setShowEmailSection={setShowEmailSection}
+          portalLoading={portalLoading}
+          onManageSubscription={() => setShowCancelWarning(true)}
+          googleDriveLoading={googleDriveLoading}
+          googleDriveStatus={googleDriveStatus}
+          googleDriveConnecting={googleDriveConnecting}
+          googleDriveDisconnecting={googleDriveDisconnecting}
+          googleDriveError={googleDriveError}
+          onConnectDrive={handleGoogleDriveConnect}
+          onDisconnectDrive={handleGoogleDriveDisconnect}
+          googleCalendarLoading={googleCalendarLoading}
+          googleCalendarStatus={googleCalendarStatus}
+          googleCalendarConnecting={googleCalendarConnecting}
+          googleCalendarDisconnecting={googleCalendarDisconnecting}
+          googleCalendarError={googleCalendarError}
+          onConnectCalendar={handleGoogleCalendarConnect}
+          onDisconnectCalendar={handleGoogleCalendarDisconnect}
+        />
       )}
+      </div>
+      </div>
 
       {/* Save Bar */}
       <div className="mt-6 flex items-center justify-between">
@@ -2673,76 +1071,6 @@ export default function SettingsPage() {
       )}
 
       </div>
-    </div>
-  );
-}
-
-function InviteAgentsCard() {
-  const { user } = useDashboard();
-  const [inviteUrl, setInviteUrl] = useState('');
-  const [agentsReferred, setAgentsReferred] = useState(0);
-  const [rewardsGiven, setRewardsGiven] = useState(0);
-  const [copied, setCopied] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!user) return;
-    user.getIdToken().then((token) =>
-      fetch('/api/agent-invite', { headers: { Authorization: `Bearer ${token}` } })
-        .then((r) => r.json())
-        .then((data) => {
-          setInviteUrl(data.inviteUrl ?? '');
-          setAgentsReferred(data.agentsReferred ?? 0);
-          setRewardsGiven(data.referralRewardsGiven ?? 0);
-        })
-        .catch(() => {})
-        .finally(() => setLoading(false)),
-    );
-  }, [user]);
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(inviteUrl);
-      captureEvent(ANALYTICS_EVENTS.REFERRAL_LINK_SHARED, { channel: 'copy_invite_link' });
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch { /* fallback */ }
-  };
-
-  return (
-    <div className="bg-white rounded-[5px] border border-gray-200 p-5">
-      <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-3">
-        Invite Agents
-      </h3>
-      <p className="text-sm text-[#707070] mb-4">
-        Share your invite link. Help a fellow agent discover smarter client retention — and earn your recruiter badge.
-      </p>
-
-      {loading ? (
-        <div className="h-10 bg-[#f8f8f8] rounded-[5px] animate-pulse" />
-      ) : (
-        <>
-          <div className="flex items-center gap-2 mb-4">
-            <input
-              readOnly
-              value={inviteUrl}
-              className="flex-1 text-sm bg-[#f8f8f8] border border-[#a4a4a4bf] rounded-[5px] px-3 py-2.5 text-[#000000] select-all"
-              onClick={(e) => (e.target as HTMLInputElement).select()}
-            />
-            <button
-              onClick={handleCopy}
-              className="shrink-0 px-4 py-2.5 text-sm font-semibold text-white bg-[#44bbaa] hover:bg-[#005751] rounded-[5px] transition-colors min-w-[80px]"
-            >
-              {copied ? 'Copied!' : 'Copy'}
-            </button>
-          </div>
-
-          <div>
-            <span className="text-2xl font-extrabold text-[#005851]">{agentsReferred}</span>
-            <p className="text-xs text-[#707070]">agents recruited</p>
-          </div>
-        </>
-      )}
     </div>
   );
 }

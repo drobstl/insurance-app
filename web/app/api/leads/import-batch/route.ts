@@ -20,11 +20,16 @@ import { loadLeadPhoneIndex } from '../../../../lib/lead-phone-index';
  *
  * Rows without a usable phone still import: `resolveLeadCodeOrDuplicate`
  * falls back to a random `L…` code (the lead shows in the queue but can't
- * log into the app until a phone is added). Same-agent phone collisions
- * are reported as `duplicates` rather than creating a second doc — matched
- * by phone against the agent's existing leads (see `loadLeadPhoneIndex`),
- * so re-importing a list also dedups leads stored under a fallback code,
- * which the global `leadCodes` index alone would miss.
+ * log into the app until a phone is added). A same-agent phone collision is
+ * matched by phone against the agent's existing leads (see
+ * `loadLeadPhoneIndex`, which also catches leads stored under a fallback
+ * code that the global `leadCodes` index alone would miss). When the names
+ * line up it's treated as a re-import of the same person: the existing lead
+ * is gap-filled IN PLACE, keeping its id so its appointments + dial history
+ * stay attached (no delete+recreate). When the names differ — a different
+ * person sharing a household phone — it's reported as a `duplicate` and
+ * skipped, so one person's details never bleed onto another. This is
+ * automatic; there is no opt-in flag.
  *
  * The client chunks large files into batches of <= BATCH_SIZE and merges
  * the per-batch results. `row` numbers are 1-based within the batch; the
@@ -76,6 +81,36 @@ interface UpdatedLead {
   changed: boolean; // true if a blank field was filled, false if already complete
 }
 
+/**
+ * Same-person check for a re-import refresh: do these two names refer to the
+ * same lead? A phone match alone isn't enough — we keep one lead per phone,
+ * and spouses on a shared household line are common in this book, so a phone
+ * collision is only safe to gap-fill when the names also line up. Mismatches
+ * fall back to the skip-as-duplicate path, so one person's details never
+ * bleed onto another's record.
+ *
+ * Lenient on formatting, strict on identity: compares the set of alphabetic
+ * name tokens, lower-cased and punctuation-stripped, order-independent (so
+ * "Jane Smith" matches "Smith, Jane"). The smaller token set must be fully
+ * contained in the larger — equal sets match, and an added/dropped middle
+ * initial or suffix still matches — but a different first name (Jane vs John
+ * Smith) never does, and a lone surname never absorbs a full-name lead. When
+ * in doubt it returns false, preferring the safe skip.
+ */
+function namesMatchForRefresh(a: string, b: string): boolean {
+  const tokenize = (s: string) =>
+    new Set(s.toLowerCase().replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(Boolean));
+  const ta = tokenize(a);
+  const tb = tokenize(b);
+  if (ta.size === 0 || tb.size === 0) return false;
+  const [small, large] = ta.size <= tb.size ? [ta, tb] : [tb, ta];
+  for (const t of small) if (!large.has(t)) return false; // small ⊆ large
+  // Containment is enough once ≥2 tokens line up (tolerates a middle initial
+  // or suffix). Single-token names must match exactly, so a bare surname
+  // can't refresh a full-name lead.
+  return small.size >= 2 || large.size === 1;
+}
+
 export async function POST(req: NextRequest) {
   try {
     // ── Auth ──
@@ -101,13 +136,6 @@ export async function POST(req: NextRequest) {
     if (rows.length > BATCH_SIZE) {
       return NextResponse.json({ error: `Maximum ${BATCH_SIZE} rows per batch` }, { status: 400 });
     }
-    // Opt-in "refresh" mode: a same-agent phone match updates the existing
-    // lead IN PLACE (gap-fill, keeping its id) instead of being skipped as a
-    // duplicate — so re-importing a vendor list never needs delete+recreate
-    // (which orphans appointments + wipes dial history). Default off keeps
-    // the existing skip-duplicates behavior.
-    const updateExisting = body?.updateExisting === true;
-
     const db = getAdminFirestore();
     const created: CreatedLead[] = [];
     const duplicates: DuplicateLead[] = [];
@@ -172,7 +200,10 @@ export async function POST(req: NextRequest) {
         if (derived) {
           const existing = phoneIndex.get(derived);
           if (existing) {
-            if (updateExisting) {
+            // Same person on this phone → refresh in place (keeps the id, so
+            // appointments + dial history survive). Different person sharing
+            // the line → skip as a duplicate, exactly as before.
+            if (namesMatchForRefresh(name, existing.name || '')) {
               const changed = await gapFillExisting(existing.leadId, row);
               updated.push({ row: rowNum, name, existingLeadId: existing.leadId, existingLeadName: existing.name, changed });
             } else {
@@ -197,7 +228,11 @@ export async function POST(req: NextRequest) {
           newLeadId: leadRef.id,
         });
         if (resolution.duplicate) {
-          if (updateExisting) {
+          // Same as the phone-index branch above: refresh only when the names
+          // confirm it's the same person; otherwise skip as a duplicate. A
+          // missing existing name fails the check, so we skip rather than risk
+          // gap-filling a stranger.
+          if (namesMatchForRefresh(name, resolution.existingLeadName || '')) {
             const changed = await gapFillExisting(resolution.existingLeadId, row);
             updated.push({ row: rowNum, name, existingLeadId: resolution.existingLeadId, existingLeadName: resolution.existingLeadName, changed });
           } else {

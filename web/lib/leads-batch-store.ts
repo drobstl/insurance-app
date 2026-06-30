@@ -81,6 +81,14 @@ export interface CreateLeadBatchInput {
    * authoritative count once it actually splits the PDF.
    */
   pageCount: number;
+  /**
+   * Optional per-lead page groups (0-based page indices) for packets where
+   * one lead spans multiple pages — e.g. a Symmetry CIE bundle (header page
+   * + continuation). When present, the processor groups each lead's pages
+   * into one extraction unit instead of one-lead-per-page. Omitted for
+   * ordinary one-form-per-page bundles.
+   */
+  leadSegments?: number[][];
   maxAttempts?: number;
 }
 
@@ -126,6 +134,7 @@ export async function createLeadBatch(
     failedPages: 0,
     duplicatePages: 0,
     totalLeads: 0,
+    ...(input.leadSegments && input.leadSegments.length ? { leadSegments: input.leadSegments } : {}),
     processingToken: null,
     attempts: 0,
     maxAttempts: input.maxAttempts ?? DEFAULT_MAX_ATTEMPTS,

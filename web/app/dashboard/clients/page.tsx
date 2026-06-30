@@ -49,6 +49,7 @@ import { useGooglePicker } from '../../../hooks/useGooglePicker';
 import type { GooglePickerSelectedFile } from '../../../hooks/useGooglePicker';
 import { buildWelcomeMessage, resolveClientLanguage, type SupportedLanguage } from '../../../lib/client-language';
 import { extractFirstName, formatClientDisplayName } from '../../../lib/name-utils';
+import { relationshipLabel } from '../../../lib/household-shared';
 import { fireConfetti } from '../../../lib/confetti';
 import {
   renderFirstPdfPagesToJpegs,
@@ -195,6 +196,13 @@ interface Client {
   /** Agent-private notes; seeded from lead.notes on convert. */
   notes?: string;
   notesUpdatedAt?: Timestamp;
+  // Household linking (Phase 2). Members of one household share a
+  // householdId; the primary is the converted lead, members are the
+  // insured people whose own applications were written.
+  householdId?: string;
+  householdRole?: 'primary' | 'member';
+  householdRelationship?: string;
+  householdPrimaryName?: string;
 }
 
 /** Calendar date written on the application (YYYY-MM-DD), distinct from Firestore createdAt. */
@@ -243,6 +251,9 @@ interface Policy {
   amountOfProtection?: number;
   protectionUnit?: 'months' | 'years';
   effectiveDate?: string;
+  /** YYYY-MM-DD the client signed the application; drives the sale date
+   *  in activity stats. Preferred over effectiveDate/createdAt. */
+  applicationSignedDate?: string;
   // Manual lifecycle dates (Issue Paid Tracker parity). Agent enters
   // these; chargebackDate is also auto-stamped on Mark Lost.
   issuePaidDate?: string;
@@ -279,6 +290,10 @@ type DuplicateMatchInfo = {
 };
 
 interface ImportRow {
+  /** Which selected file produced this row — lets the agent remove one
+   *  file's rows from an accumulated batch. Optional: the Google-Drive
+   *  path doesn't set it (those rows aren't individually removable). */
+  sourceFileId?: string;
   name: string;
   owner?: string;
   email: string;
@@ -337,6 +352,9 @@ interface ImportFileStatus {
   rejectedRows: number;
   error?: string;
   notes?: string[];
+  /** Set when the file failed because it's password-protected — drives
+   *  the "set aside, add one at a time" callout + handoff. */
+  lockReason?: 'pdf_encrypted_unsupported';
 }
 
 interface ImportNotice {
@@ -753,6 +771,7 @@ const emptyPolicyForm: PolicyFormData = {
   premiumFrequency: 'monthly',
   renewalDate: '',
   effectiveDate: '',
+  applicationSignedDate: '',
   issuePaidDate: '',
   chargebackDate: '',
   amountOfProtection: '',
@@ -973,6 +992,18 @@ export default function ClientsPage() {
   const [importProgress, setImportProgress] = useState(0);
   const [importSuccess, setImportSuccess] = useState('');
   const [importFileStatuses, setImportFileStatuses] = useState<ImportFileStatus[]>([]);
+  // Locked (password-protected) PDFs that failed the bulk parse. Kept in
+  // memory so we can hand the exact File to the single-file Add Client
+  // flow (which reads edit-locked PDFs fine). A File can't survive a page
+  // reload, so this is session-scoped.
+  const [lockedImportFiles, setLockedImportFiles] = useState<Map<string, File>>(new Map());
+  // Snapshot of locked files captured at import time so the post-import
+  // results screen can still offer them after importData/statuses clear.
+  const [postImportLockedFiles, setPostImportLockedFiles] = useState<{ id: string; file: File }[]>([]);
+  const [dismissedLockedReminder, setDismissedLockedReminder] = useState(false);
+  // Cross-reload hint (filenames only — the File itself is gone after a
+  // reload) so we can still nudge the agent to re-add a locked file.
+  const [reloadLockedHint, setReloadLockedHint] = useState<{ count: number; names: string[] } | null>(null);
   const [importSessionStartedAt, setImportSessionStartedAt] = useState<number | null>(null);
   const [importDragActive, setImportDragActive] = useState(false);
   const [selectedImportRowIndex, setSelectedImportRowIndex] = useState(0);
@@ -1258,6 +1289,20 @@ export default function ClientsPage() {
     return () => unsub();
   }, [user]);
 
+  // Deep-link: open a client's detail panel when arriving via
+  // /dashboard/clients?client=<id> (e.g. clicking a name on the action-items
+  // page). Waits for the list to load, then consumes the param so a later
+  // snapshot re-render can't reopen it after the agent closes the panel.
+  useEffect(() => {
+    const id = searchParams.get('client');
+    if (!id || clientsLoading) return;
+    const c = clients.find((x) => x.id === id);
+    if (c) {
+      setSelectedClient(c);
+      router.replace('/dashboard/clients', { scroll: false });
+    }
+  }, [searchParams, clients, clientsLoading, router]);
+
   // Fetch policies for selected client via Admin SDK API route
   useEffect(() => {
     if (!user || !selectedClient) {
@@ -1514,11 +1559,80 @@ export default function ClientsPage() {
     return result;
   }, [clients, searchQuery, sortKey, sortDir]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredClients.length / PAGE_SIZE));
+  // ── Household grouping (Phase 2) ──
+  // Clients converted from the same lead's household share a householdId.
+  // Only households with 2+ loaded members render as a visible cluster.
+  const householdGroups = useMemo(() => {
+    const m = new Map<string, Client[]>();
+    for (const c of clients) {
+      if (!c.householdId) continue;
+      const arr = m.get(c.householdId);
+      if (arr) arr.push(c);
+      else m.set(c.householdId, [c]);
+    }
+    for (const [k, arr] of m) if (arr.length < 2) m.delete(k);
+    return m;
+  }, [clients]);
+
+  // Reorder the filtered list so household members sit together (primary
+  // first), clustered at whichever member sorts first. Same length as
+  // filteredClients — a reorder, not a filter.
+  const groupedClients = useMemo(() => {
+    if (householdGroups.size === 0) return filteredClients;
+    const filteredIds = new Set(filteredClients.map((c) => c.id));
+    const emitted = new Set<string>();
+    const out: Client[] = [];
+    const order = (a: Client, b: Client) => {
+      const ar = a.householdRole === 'primary' ? 0 : 1;
+      const br = b.householdRole === 'primary' ? 0 : 1;
+      if (ar !== br) return ar - br;
+      return (a.name || '').localeCompare(b.name || '');
+    };
+    for (const c of filteredClients) {
+      if (emitted.has(c.id)) continue;
+      const group = c.householdId ? householdGroups.get(c.householdId) : undefined;
+      if (group && group.length >= 2) {
+        const inFilter = group.filter((g) => filteredIds.has(g.id)).sort(order);
+        for (const g of inFilter) {
+          if (!emitted.has(g.id)) { emitted.add(g.id); out.push(g); }
+        }
+      } else {
+        emitted.add(c.id);
+        out.push(c);
+      }
+    }
+    return out;
+  }, [filteredClients, householdGroups]);
+
+  // Household display metadata for a client row (pill label + accent).
+  const householdMeta = useCallback((client: Client) => {
+    if (!client.householdId) return null;
+    const group = householdGroups.get(client.householdId);
+    if (!group || group.length < 2) return null;
+    const isPrimary = client.householdRole === 'primary';
+    const primary = group.find((g) => g.householdRole === 'primary');
+    const primaryFirst = ((client.householdPrimaryName || primary?.name || '').trim().split(/\s+/)[0]) || '';
+    const rel = relationshipLabel(client.householdRelationship) || 'Family';
+    return {
+      isPrimary,
+      size: group.length,
+      pill: isPrimary ? `Household · ${group.length}` : (primaryFirst ? `${rel} of ${primaryFirst}` : rel),
+    };
+  }, [householdGroups]);
+
+  // Other clients in the selected client's household (for the detail panel).
+  const selectedHouseholdMembers = useMemo(() => {
+    if (!selectedClient?.householdId) return [];
+    const group = householdGroups.get(selectedClient.householdId);
+    if (!group) return [];
+    return group.filter((g) => g.id !== selectedClient.id);
+  }, [selectedClient, householdGroups]);
+
+  const totalPages = Math.max(1, Math.ceil(groupedClients.length / PAGE_SIZE));
   const paginatedClients = useMemo(() => {
     const start = (currentPage - 1) * PAGE_SIZE;
-    return filteredClients.slice(start, start + PAGE_SIZE);
-  }, [filteredClients, currentPage]);
+    return groupedClients.slice(start, start + PAGE_SIZE);
+  }, [groupedClients, currentPage]);
 
   useEffect(() => {
     if (clientsLoading) return;
@@ -1762,6 +1876,44 @@ export default function ClientsPage() {
       console.error('Top-level client mirror update failed (non-blocking):', mirrorErr);
     }
 
+    // Keep the policy sale date in lockstep with "Client Since" so the
+    // date the agent edits in the profile actually moves their Activity
+    // numbers (Activity reads the policy's applicationSignedDate, not the
+    // client's clientSinceDate). Surgical: only when the client has a
+    // single policy whose sale date is still the createdAt fallback — no
+    // real signed OR effective date — which is exactly the case that
+    // silently dates an old policy to its import day. Never clobbers a
+    // policy that already carries a real date, and skips multi-policy
+    // clients (those stay per-policy editable on the Activity ledger).
+    if (sinceTrim && CLIENT_SINCE_ISO.test(sinceTrim)) {
+      try {
+        const token = await user.getIdToken();
+        const polRes = await fetch(`/api/policies?clientId=${clientId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (polRes.ok) {
+          const { policies: pols } = (await polRes.json()) as {
+            policies: Array<{ id: string; applicationSignedDate?: string | null; effectiveDate?: string | null }>;
+          };
+          if (pols.length === 1) {
+            const only = pols[0];
+            const hasRealDate =
+              (typeof only.applicationSignedDate === 'string' && only.applicationSignedDate.trim() !== '') ||
+              (typeof only.effectiveDate === 'string' && only.effectiveDate.trim() !== '');
+            if (!hasRealDate) {
+              await fetch('/api/policies', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ clientId, policyId: only.id, applicationSignedDate: sinceTrim }),
+              });
+            }
+          }
+        }
+      } catch (syncErr) {
+        console.error('clientSince → policy sale-date sync failed (non-blocking):', syncErr);
+      }
+    }
+
     const nextClientSinceLocal = (prev: string | undefined): string | undefined => {
       if (!sinceTrim) return undefined;
       if (CLIENT_SINCE_ISO.test(sinceTrim)) return sinceTrim;
@@ -1999,6 +2151,7 @@ export default function ClientsPage() {
         premiumFrequency: addFlowPolicyForm.premiumFrequency || 'monthly',
         renewalDate: addFlowPolicyForm.renewalDate || '',
         effectiveDate: addFlowPolicyForm.effectiveDate || null,
+        applicationSignedDate: addFlowPolicyForm.applicationSignedDate || null,
         status: 'Active',
       };
       if (
@@ -2182,6 +2335,7 @@ export default function ClientsPage() {
           premiumFrequency: addFlowPolicyForm.premiumFrequency || 'monthly',
           renewalDate: addFlowPolicyForm.renewalDate || '',
           effectiveDate: addFlowPolicyForm.effectiveDate || null,
+          applicationSignedDate: addFlowPolicyForm.applicationSignedDate || null,
           status: 'Active',
         };
         if (
@@ -2588,6 +2742,7 @@ export default function ClientsPage() {
         premiumFrequency: policyFormData.premiumFrequency,
         renewalDate: policyFormData.renewalDate,
         effectiveDate: policyFormData.effectiveDate || null,
+        applicationSignedDate: policyFormData.applicationSignedDate || null,
         issuePaidDate: policyFormData.issuePaidDate || null,
         chargebackDate: policyFormData.chargebackDate || null,
         status: policyFormData.status,
@@ -3597,10 +3752,48 @@ export default function ClientsPage() {
     );
   }, []);
 
-  const processImportSources = useCallback(async (sources: ImportSourceFile[]) => {
-    if (!user || sources.length === 0) return;
-    if (sources.length > MAX_FILES_PER_IMPORT) {
+  // Drop one file from an accumulated batch: its parsed rows, its status
+  // row, and any retained locked File. The "Import N clients" count and the
+  // status pills derive from importData/importFileStatuses, so they
+  // recompute automatically.
+  const removeImportFile = useCallback((sourceFileId: string) => {
+    setImportData((prev) => prev.filter((row) => row.sourceFileId !== sourceFileId));
+    setImportFileStatuses((prev) => prev.filter((status) => status.sourceFileId !== sourceFileId));
+    setLockedImportFiles((prev) => {
+      if (!prev.has(sourceFileId)) return prev;
+      const next = new Map(prev);
+      next.delete(sourceFileId);
+      return next;
+    });
+  }, []);
+
+  const processImportSources = useCallback(async (incomingSources: ImportSourceFile[]) => {
+    if (!user || incomingSources.length === 0) return;
+
+    // Accumulate across multiple picks/drops instead of replacing the
+    // pending batch, so an agent can gather files across folders (the OS
+    // picker can't multi-select across folders). Everything below operates
+    // on `sources` = only the genuinely-new files; already-pending files
+    // (de-duped by sourceFileId) are left untouched.
+    const existingIds = new Set(importFileStatuses.map((s) => s.sourceFileId));
+    const sources = incomingSources.filter((s) => !existingIds.has(s.sourceFileId));
+    if (sources.length === 0) {
+      showImportNotice('files_added', { items: ['Those files are already in your list.'] });
+      return;
+    }
+    if (importFileStatuses.length + sources.length > MAX_FILES_PER_IMPORT) {
       showImportNotice('file_limit');
+      setImportSuccess('');
+      return;
+    }
+    // Enforce the no-mixed-batch (PDF vs spreadsheet/CSV) rule across the
+    // whole pending set, not just this drop.
+    const combinedMixError = getBulkBatchMixValidationError([
+      ...importFileStatuses.map((s) => s.fileType),
+      ...sources.map((s) => s.fileType),
+    ]);
+    if (combinedMixError) {
+      showImportNotice('mixed_batch_blocked', { items: [combinedMixError] });
       setImportSuccess('');
       return;
     }
@@ -3610,20 +3803,20 @@ export default function ClientsPage() {
     clearImportNotice();
     showImportNotice('processing_started');
     setImportSuccess('');
-    setImportData([]);
     setImportProgress(0);
     setImportSessionStartedAt(startedAt);
-    setImportFileStatuses(
-      sources.map((source) => ({
+    setImportFileStatuses((prev) => [
+      ...prev,
+      ...sources.map((source) => ({
         sourceFileId: source.sourceFileId,
         name: source.file.name,
         fileType: source.fileType,
-        state: 'queued',
+        state: 'queued' as const,
         loadedRows: 0,
         rejectedRows: 0,
         notes: [],
       })),
-    );
+    ]);
 
     const fileTypeCounts = {
       pdf: sources.filter((s) => s.fileType === 'pdf').length,
@@ -3720,7 +3913,10 @@ export default function ClientsPage() {
           warningFiles.add(source.sourceFileId);
           addImportFileNote(source.sourceFileId, note);
         }
-        setImportData((prev) => [...prev, ...quality.accepted]);
+        setImportData((prev) => [
+          ...prev,
+          ...quality.accepted.map((row) => ({ ...row, sourceFileId: source.sourceFileId })),
+        ]);
         loadedRows += quality.accepted.length;
         parsedFiles += 1;
         updateImportFileStatus(source.sourceFileId, {
@@ -3740,10 +3936,19 @@ export default function ClientsPage() {
       } catch (err) {
         failedFiles += 1;
         let message = 'Failed to parse file. Please try again.';
+        let lockReason: ImportFileStatus['lockReason'];
         if (isTimeoutError(err)) {
           message = 'Request timed out while parsing this file. Please retry.';
         } else if (err instanceof BulkImportTerminalError && err.reason === 'pdf_encrypted_unsupported') {
           message = BULK_ENCRYPTED_PDF_UNSUPPORTED_MESSAGE;
+          lockReason = 'pdf_encrypted_unsupported';
+          // Keep the File so the agent can hand it to the single-file Add
+          // Client flow in one click (it reads edit-locked PDFs fine).
+          setLockedImportFiles((prev) => {
+            const next = new Map(prev);
+            next.set(source.sourceFileId, source.file);
+            return next;
+          });
         } else if (err instanceof Error) {
           if (err.message.includes('client token') || err.message.includes('Vercel Blob')) {
             message = 'Upload service temporarily unavailable. Please try again.';
@@ -3751,7 +3956,7 @@ export default function ClientsPage() {
             message = err.message;
           }
         }
-        updateImportFileStatus(source.sourceFileId, { state: 'failed', error: message });
+        updateImportFileStatus(source.sourceFileId, { state: 'failed', error: message, lockReason });
         captureEvent(ANALYTICS_EVENTS.BULK_IMPORT_FILE_PARSED, {
           source: 'local_bulk',
           file_type: source.fileType,
@@ -3819,7 +4024,7 @@ export default function ClientsPage() {
     });
 
     setParsingBob(false);
-  }, [addImportFileNote, bulkPdfConcurrencyLimit, clearImportNotice, parseBobSourceFile, parseSingleCsv, showImportNotice, updateImportFileStatus, user]);
+  }, [addImportFileNote, bulkPdfConcurrencyLimit, clearImportNotice, getBulkBatchMixValidationError, importFileStatuses, parseBobSourceFile, parseSingleCsv, showImportNotice, updateImportFileStatus, user]);
 
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -4127,6 +4332,12 @@ export default function ClientsPage() {
     const allCreated: { clientId: string; phone: string; firstName: string; clientCode: string }[] = [];
     const chunks: ImportRow[][] = [];
     let serverPolicyCount = 0;
+    // Duplicates caught against the existing book: confident matches folded
+    // into the client already on file (merged), uncertain name-only matches
+    // created but flagged for the "Review imported clients" screen.
+    let mergedCount = 0;
+    let mergedPolicyCount = 0;
+    let flaggedCount = 0;
     for (let i = 0; i < importData.length; i += IMPORT_BATCH_SIZE) {
       chunks.push(importData.slice(i, i + IMPORT_BATCH_SIZE));
     }
@@ -4146,6 +4357,9 @@ export default function ClientsPage() {
         const data = await res.json();
         if (Array.isArray(data.created)) allCreated.push(...data.created);
         if (typeof data.totalPolicies === 'number') serverPolicyCount += data.totalPolicies;
+        if (Array.isArray(data.merged)) mergedCount += data.merged.length;
+        if (typeof data.totalPoliciesMerged === 'number') mergedPolicyCount += data.totalPoliciesMerged;
+        if (Array.isArray(data.flaggedForReview)) flaggedCount += data.flaggedForReview.length;
         setImportProgress(Math.round(((c + 1) / chunks.length) * 100));
       }
 
@@ -4166,14 +4380,45 @@ export default function ClientsPage() {
           });
         }
       }
-      const parts = [`${clientCount} client${clientCount !== 1 ? 's' : ''}`];
-      if (policyCount > 0) parts.push(`${policyCount} ${policyCount !== 1 ? 'policies' : 'policy'}`);
-      setImportSuccess(`Successfully imported ${parts.join(' and ')}!`);
+      let message: string;
+      if (clientCount === 0 && mergedCount > 0) {
+        // The re-import case: everyone was already on file. Say so plainly
+        // so it's obvious the importer recognized them (no new duplicates).
+        message = `All ${mergedCount} record${mergedCount !== 1 ? 's were' : ' was'} already in your book — updated in place, no duplicates created.`;
+      } else {
+        const parts = [`${clientCount} client${clientCount !== 1 ? 's' : ''}`];
+        if (policyCount > 0) parts.push(`${policyCount} ${policyCount !== 1 ? 'policies' : 'policy'}`);
+        message = `Successfully imported ${parts.join(' and ')}!`;
+        if (mergedCount > 0) {
+          const polNote = mergedPolicyCount > 0
+            ? ` (${mergedPolicyCount} new ${mergedPolicyCount !== 1 ? 'policies' : 'policy'} added)`
+            : '';
+          message += ` ${mergedCount} already in your book ${mergedCount !== 1 ? 'were' : 'was'} updated${polNote}.`;
+        }
+      }
+      if (flaggedCount > 0) {
+        message += ` ${flaggedCount} possible duplicate${flaggedCount !== 1 ? 's' : ''} flagged — see “Review imported clients”.`;
+      }
+      setImportSuccess(message);
       setJustImportedClients(allCreated);
+      // Carry locked (password-protected) files forward to the results
+      // screen so they're not lost when the pending lists clear below.
+      const lockedStragglers = Array.from(lockedImportFiles.entries()).map(([id, file]) => ({ id, file }));
+      setPostImportLockedFiles(lockedStragglers);
+      if (lockedStragglers.length > 0) {
+        try {
+          window.localStorage.setItem('bulkImport.lockedStragglers', JSON.stringify({
+            count: lockedStragglers.length,
+            names: lockedStragglers.map((s) => s.file.name),
+          }));
+        } catch { /* localStorage unavailable — the in-session banner still works */ }
+        setDismissedLockedReminder(false);
+      }
+      setLockedImportFiles(new Map());
       setImportData([]);
       setImportFileStatuses([]);
       clearImportNotice();
-      if (policyCount > 0) refreshSummaries();
+      if (policyCount > 0 || mergedPolicyCount > 0) refreshSummaries();
     } catch (err) {
       console.error('Error importing clients:', err);
       showImportNotice('import_failed', {
@@ -4182,7 +4427,7 @@ export default function ClientsPage() {
     } finally {
       setImporting(false);
     }
-  }, [user, importData, importSessionStartedAt, refreshSummaries, clearImportNotice, showImportNotice]);
+  }, [user, importData, importSessionStartedAt, lockedImportFiles, refreshSummaries, clearImportNotice, showImportNotice]);
 
   useEffect(() => {
     if (importSuccess && importModalScrollRef.current) {
@@ -4198,6 +4443,38 @@ export default function ClientsPage() {
       importReviewSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   }, [importData.length, isImportModalOpen, parsingBob]);
+
+  // One-click handoff: send a locked file to the single-file Add Client
+  // flow with the File pre-staged, so the agent doesn't have to find it
+  // again. resetAddFlowState (inside handleStartAddFlow) clears the staged
+  // file first, so we set it AFTER — last write wins in the same batch.
+  const handleAddLockedFile = useCallback((file: File, sourceFileId: string) => {
+    setIsImportModalOpen(false);
+    setImportSuccess('');
+    handleStartAddFlow();
+    setClientStagedFile(file);
+    setPostImportLockedFiles((prev) => prev.filter((s) => s.id !== sourceFileId));
+    setLockedImportFiles((prev) => {
+      if (!prev.has(sourceFileId)) return prev;
+      const next = new Map(prev);
+      next.delete(sourceFileId);
+      return next;
+    });
+  }, [handleStartAddFlow]);
+
+  // Hydrate the cross-reload locked-file hint once on mount. The File is
+  // gone after a reload, so this can only remind the agent (by filename)
+  // to re-add it — not one-click it.
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem('bulkImport.lockedStragglers');
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { count?: number; names?: string[] };
+      if (parsed && typeof parsed.count === 'number' && parsed.count > 0) {
+        setReloadLockedHint({ count: parsed.count, names: Array.isArray(parsed.names) ? parsed.names : [] });
+      }
+    } catch { /* ignore malformed hint */ }
+  }, []);
 
   // ─── Share Code Handler ──────────────────────────────────
 
@@ -4301,6 +4578,16 @@ export default function ClientsPage() {
           <option value="semi-annual">Premium Frequency: Semi-Annual</option>
           <option value="annual">Premium Frequency: Annual</option>
         </select>
+        <div className="flex flex-col">
+          <label className="text-xs font-medium text-[#707070] mb-1">Application Signed Date</label>
+          <input
+            type="date"
+            value={addFlowPolicyForm.applicationSignedDate}
+            onChange={(e) => setAddFlowPolicyForm((f) => ({ ...f, applicationSignedDate: e.target.value }))}
+            className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm"
+          />
+          <p className="text-[11px] text-[#707070] mt-1">When the client signed — this is the sale date in your Activity.</p>
+        </div>
         <div className="flex flex-col">
           <label className="text-xs font-medium text-[#707070] mb-1">Effective Date</label>
           <input
@@ -4714,6 +5001,61 @@ export default function ClientsPage() {
         </div>
       )}
 
+      {/* Safety net: don't let a locked (password-protected) file from a
+          bulk import get forgotten. In-session we still hold the File and
+          can one-click it; after a reload we can only name it and prompt a
+          re-pick (a File can't survive a reload). */}
+      {!isImportModalOpen && !isAddFlowActive && !dismissedLockedReminder && postImportLockedFiles.length > 0 && (
+        <div className="mb-4 flex items-center justify-between gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-[5px]">
+          <div className="flex items-center gap-3 min-w-0">
+            <svg className="w-5 h-5 text-amber-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+            <p className="text-sm text-amber-800 min-w-0 truncate">
+              {postImportLockedFiles.length} locked file{postImportLockedFiles.length !== 1 ? 's' : ''} from your import still {postImportLockedFiles.length !== 1 ? 'need' : 'needs'} adding.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => { const first = postImportLockedFiles[0]; handleAddLockedFile(first.file, first.id); }}
+              className="px-4 py-1.5 bg-[#44bbaa] hover:bg-[#005751] text-white text-sm font-semibold rounded-[5px] transition-colors"
+            >
+              Add now
+            </button>
+            <button
+              onClick={() => { setDismissedLockedReminder(true); setPostImportLockedFiles([]); try { window.localStorage.removeItem('bulkImport.lockedStragglers'); } catch { /* noop */ } }}
+              className="p-1 rounded hover:bg-amber-100 text-amber-700 transition-colors"
+              aria-label="Dismiss"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+        </div>
+      )}
+      {!isImportModalOpen && !isAddFlowActive && !dismissedLockedReminder && postImportLockedFiles.length === 0 && reloadLockedHint && (
+        <div className="mb-4 flex items-center justify-between gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-[5px]">
+          <div className="flex items-center gap-3 min-w-0">
+            <svg className="w-5 h-5 text-amber-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+            <p className="text-sm text-amber-800 min-w-0 truncate">
+              {reloadLockedHint.count} file{reloadLockedHint.count !== 1 ? 's' : ''} from your last import {reloadLockedHint.count !== 1 ? 'were' : 'was'} locked{reloadLockedHint.names.length ? ` (${reloadLockedHint.names.join(', ')})` : ''} — add {reloadLockedHint.count !== 1 ? 'them' : 'it'} one at a time.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => { setReloadLockedHint(null); try { window.localStorage.removeItem('bulkImport.lockedStragglers'); } catch { /* noop */ } handleStartAddFlow(); }}
+              className="px-4 py-1.5 bg-[#44bbaa] hover:bg-[#005751] text-white text-sm font-semibold rounded-[5px] transition-colors"
+            >
+              Add a client
+            </button>
+            <button
+              onClick={() => { setDismissedLockedReminder(true); setReloadLockedHint(null); try { window.localStorage.removeItem('bulkImport.lockedStragglers'); } catch { /* noop */ } }}
+              className="p-1 rounded hover:bg-amber-100 text-amber-700 transition-colors"
+              aria-label="Dismiss"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className={isImportModalOpen || isAddFlowActive ? 'overflow-x-visible' : 'overflow-x-clip'}>
         <div
           className="flex transition-transform duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
@@ -4840,6 +5182,35 @@ export default function ClientsPage() {
                     </div>
                     <p className="text-lg font-bold text-[#000000] mb-2">{importSuccess}</p>
                   </div>
+                  {postImportLockedFiles.length > 0 && (
+                    <div className="rounded-[5px] border border-amber-200 bg-amber-50 px-4 py-3 text-left space-y-2.5">
+                      <div className="flex items-start gap-2">
+                        <svg className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                        <div>
+                          <p className="text-sm font-semibold text-amber-800">
+                            {postImportLockedFiles.length} locked file{postImportLockedFiles.length !== 1 ? 's' : ''} couldn&apos;t be read in bulk
+                          </p>
+                          <p className="text-xs text-amber-700 leading-relaxed mt-0.5">
+                            They&apos;re password-protected. Add each one here — we&apos;ll load the exact file for you, so there&apos;s nothing to find again.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        {postImportLockedFiles.map(({ id, file }) => (
+                          <div key={id} className="flex items-center justify-between gap-3 bg-white rounded-[5px] border border-amber-200 px-3 py-2">
+                            <span className="text-xs text-[#3a3a3a] truncate" title={file.name}>{file.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleAddLockedFile(file, id)}
+                              className="shrink-0 px-3 py-1.5 bg-[#44bbaa] hover:bg-[#005751] text-white text-xs font-semibold rounded-[5px] transition-colors"
+                            >
+                              Unlock &amp; add this file
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   {/* Mode 2 (May 9, 2026) — bulk-import drip release.
                       The legacy "Send intro to N clients" bulk-blast path
                       was removed because it bypassed the drip and
@@ -5057,11 +5428,18 @@ export default function ClientsPage() {
                         </div>
                       </div>
                       <div className="divide-y divide-[#f0f0f0]">
-                        {importFileStatuses.map((status) => (
+                        {importFileStatuses.map((status) => {
+                          const isLocked = status.lockReason === 'pdf_encrypted_unsupported';
+                          return (
                           <div key={status.sourceFileId} className="px-4 py-2 flex items-start justify-between gap-3">
                             <div className="min-w-0">
                               <p className="text-xs font-medium text-[#000000] truncate">{status.name}</p>
-                              {status.error ? (
+                              {isLocked ? (
+                                <p className="text-[11px] text-amber-700 leading-relaxed flex items-start gap-1">
+                                  <svg className="w-3 h-3 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                  <span>Locked (password-protected). Set aside — import the rest, then add this one in the next step.</span>
+                                </p>
+                              ) : status.error ? (
                                 <p className="text-[11px] text-red-600 leading-relaxed">{toPlainEnglishImportFailureReason(status.error)}</p>
                               ) : (
                                 <p className="text-[11px] text-[#707070]">
@@ -5082,21 +5460,63 @@ export default function ClientsPage() {
                                 </div>
                               )}
                             </div>
-                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
-                              status.state === 'succeeded'
-                                ? 'bg-green-50 text-green-700'
-                                : status.state === 'failed'
-                                  ? 'bg-red-50 text-red-700'
-                                  : status.state === 'parsing'
-                                    ? 'bg-blue-50 text-blue-700'
-                                    : 'bg-gray-100 text-gray-600'
-                            }`}>
-                              {status.state === 'queued'
-                                ? 'queued'
-                                : status.state === 'parsing'
-                                  ? 'processing'
-                                  : status.state}
-                            </span>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
+                                isLocked
+                                  ? 'bg-amber-50 text-amber-700'
+                                  : status.state === 'succeeded'
+                                    ? 'bg-green-50 text-green-700'
+                                    : status.state === 'failed'
+                                      ? 'bg-red-50 text-red-700'
+                                      : status.state === 'parsing'
+                                        ? 'bg-blue-50 text-blue-700'
+                                        : 'bg-gray-100 text-gray-600'
+                              }`}>
+                                {isLocked
+                                  ? 'locked'
+                                  : status.state === 'queued'
+                                    ? 'queued'
+                                    : status.state === 'parsing'
+                                      ? 'processing'
+                                      : status.state}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => removeImportFile(status.sourceFileId)}
+                                disabled={importing || parsingBob}
+                                aria-label={`Remove ${status.name}`}
+                                title="Remove this file"
+                                className="p-1 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                              </button>
+                            </div>
+                          </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {!parsingBob && importData.length === 0 && lockedImportFiles.size > 0 && (
+                    <div className="rounded-[5px] border border-amber-200 bg-amber-50 px-4 py-3 space-y-2.5">
+                      <p className="text-sm font-semibold text-amber-800">
+                        {lockedImportFiles.size === 1 ? 'This file is password-protected' : 'These files are password-protected'}
+                      </p>
+                      <p className="text-xs text-amber-700 leading-relaxed">
+                        We can&apos;t open locked files in a bulk batch. Add {lockedImportFiles.size === 1 ? 'it' : 'each one'} here — we&apos;ll load the exact file for you.
+                      </p>
+                      <div className="space-y-1.5">
+                        {Array.from(lockedImportFiles.entries()).map(([id, file]) => (
+                          <div key={id} className="flex items-center justify-between gap-3 bg-white rounded-[5px] border border-amber-200 px-3 py-2">
+                            <span className="text-xs text-[#3a3a3a] truncate" title={file.name}>{file.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleAddLockedFile(file, id)}
+                              className="shrink-0 px-3 py-1.5 bg-[#44bbaa] hover:bg-[#005751] text-white text-xs font-semibold rounded-[5px] transition-colors"
+                            >
+                              Unlock &amp; add this file
+                            </button>
                           </div>
                         ))}
                       </div>
@@ -5271,6 +5691,8 @@ export default function ClientsPage() {
                             setImportData([]);
                             clearImportNotice();
                             setImportFileStatuses([]);
+                            setLockedImportFiles(new Map());
+                            setPostImportLockedFiles([]);
                             setSelectedImportRowIndex(0);
                             batchDismissedRef.current = true;
                             setBatchNotification(null);
@@ -5460,13 +5882,14 @@ export default function ClientsPage() {
                   const summary = clientPolicySummaries[client.id];
                   const hasLapsed = summary && summary.lapsed > 0;
                   const upcomingAnniversaryCount = clientUpcomingAnniversaryCounts[client.id] || 0;
+                  const hh = householdMeta(client);
                   return (
                   <tr
                     key={client.id}
                     className="hover:bg-[#f8f8f8] transition-colors cursor-pointer"
                     onClick={() => handleSelectClient(client)}
                   >
-                    <td className="px-5 py-3.5">
+                    <td className="px-5 py-3.5" style={hh ? { boxShadow: 'inset 3px 0 0 #45bcaa' } : undefined}>
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 bg-[#005851] rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0">
                           {formatClientDisplayName(client.name).charAt(0).toUpperCase()}
@@ -5474,6 +5897,17 @@ export default function ClientsPage() {
                         <div className="min-w-0">
                           <div className="flex items-center gap-2 min-w-0">
                             <span className="text-sm font-medium text-[#000000] block truncate">{formatClientDisplayName(client.name)}</span>
+                            {hh && (
+                              <span
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-[#daf3f0] text-[#005851] text-[10px] rounded-full font-semibold shrink-0"
+                                title={hh.isPrimary ? `Head of a ${hh.size}-person household` : 'Linked household member'}
+                              >
+                                <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4zm6 0a3 3 0 10-3-3" />
+                                </svg>
+                                {hh.pill}
+                              </span>
+                            )}
                             {upcomingAnniversaryCount > 0 && (
                               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-50 text-amber-700 text-[10px] rounded-full font-semibold shrink-0">
                                 <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -5565,11 +5999,13 @@ export default function ClientsPage() {
               const summary = clientPolicySummaries[client.id];
               const hasLapsed = summary && summary.lapsed > 0;
               const upcomingAnniversaryCount = clientUpcomingAnniversaryCounts[client.id] || 0;
+              const hh = householdMeta(client);
               return (
               <div
                 key={client.id}
                 className="p-4 hover:bg-[#f8f8f8] transition-colors cursor-pointer"
                 onClick={() => handleSelectClient(client)}
+                style={hh ? { boxShadow: 'inset 3px 0 0 #45bcaa' } : undefined}
               >
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-[#005851] rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0">
@@ -5578,6 +6014,11 @@ export default function ClientsPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-semibold text-[#000000] truncate">{formatClientDisplayName(client.name)}</p>
+                      {hh && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 bg-[#daf3f0] text-[#005851] text-[10px] rounded-full font-semibold shrink-0">
+                          {hh.pill}
+                        </span>
+                      )}
                       {upcomingAnniversaryCount > 0 && (
                         <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-50 text-amber-700 text-[10px] rounded-full font-semibold shrink-0">
                           <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -6577,6 +7018,18 @@ export default function ClientsPage() {
                 </select>
               </div>
 
+              {/* Application Signed Date — the sale date used in Activity */}
+              <div>
+                <label className="block text-sm font-medium text-[#000000] mb-1">Application Signed Date</label>
+                <input
+                  type="date"
+                  value={policyFormData.applicationSignedDate}
+                  onChange={(e) => setPolicyFormData((f) => ({ ...f, applicationSignedDate: e.target.value }))}
+                  className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
+                />
+                <p className="text-xs text-[#707070] mt-1">When the client signed the application. This is the sale date used in your Activity numbers — set it for back-dated/existing policies so they don&apos;t count as new sales.</p>
+              </div>
+
               {/* Effective Date */}
               <div>
                 <label className="block text-sm font-medium text-[#000000] mb-1">Effective Date</label>
@@ -6854,6 +7307,7 @@ export default function ClientsPage() {
                   premiumFrequency: policy.premiumFrequency || 'monthly',
                   renewalDate: policy.renewalDate || '',
                   effectiveDate: policy.effectiveDate || '',
+                  applicationSignedDate: policy.applicationSignedDate || '',
                   issuePaidDate: policy.issuePaidDate || '',
                   chargebackDate: policy.chargebackDate || '',
                   amountOfProtection: policy.amountOfProtection ? String(policy.amountOfProtection) : '',
@@ -6871,7 +7325,10 @@ export default function ClientsPage() {
               onFlagAtRisk={() => { refreshPolicies(); }}
               agentName={agentProfile.name}
               hasSchedulingUrl={!!agentProfile.schedulingUrl}
+              resetRevealEnabled={!!agentProfile.resetRevealEnabled}
               clientPushToken={clientPushToken === undefined ? null : clientPushToken}
+              householdMembers={selectedHouseholdMembers}
+              onSelectHouseholdMember={handleSelectClient}
             />
           </div>
           <div className="xl:hidden">
@@ -6913,6 +7370,7 @@ export default function ClientsPage() {
                   premiumFrequency: policy.premiumFrequency || 'monthly',
                   renewalDate: policy.renewalDate || '',
                   effectiveDate: policy.effectiveDate || '',
+                  applicationSignedDate: policy.applicationSignedDate || '',
                   issuePaidDate: policy.issuePaidDate || '',
                   chargebackDate: policy.chargebackDate || '',
                   amountOfProtection: policy.amountOfProtection ? String(policy.amountOfProtection) : '',
@@ -6930,7 +7388,10 @@ export default function ClientsPage() {
               onFlagAtRisk={() => { refreshPolicies(); }}
               agentName={agentProfile.name}
               hasSchedulingUrl={!!agentProfile.schedulingUrl}
+              resetRevealEnabled={!!agentProfile.resetRevealEnabled}
               clientPushToken={clientPushToken === undefined ? null : clientPushToken}
+              householdMembers={selectedHouseholdMembers}
+              onSelectHouseholdMember={handleSelectClient}
             />
           </div>
         </>

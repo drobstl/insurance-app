@@ -8,6 +8,7 @@ import { defineSecret } from 'firebase-functions/params';
 import { PDFDocument } from 'pdf-lib';
 import { extractLeadFromPdf } from './lead-extractor';
 import { commitLead } from './lead-commit';
+import { computeLeadSegmentsFromPdf } from './cie-segment-pdf';
 
 /**
  * leads-batch-processor — splits a multi-page lead-form PDF and extracts
@@ -65,6 +66,9 @@ interface LockedBatch {
   gcsPath: string;
   sourceFileUrl: string;
   sourceFileStoragePath: string;
+  /** Pre-computed per-lead page groups (0-based) when the web tier detected
+   *  a multi-page-lead template (e.g. Symmetry CIE); null otherwise. */
+  leadSegments: number[][] | null;
   processingToken: string;
   attempts: number;
 }
@@ -142,16 +146,54 @@ export const processLeadBatch = onDocumentCreated(
         return;
       }
 
-      // Stamp the authoritative page count (the create route seeded a
-      // client estimate so the progress bar could render immediately).
-      await setTotalPages(batch, pageCount);
+      // Group pages into per-lead units. Ordinary bundles are one form per
+      // page; a Symmetry CIE packet is a repeating multi-page template, so
+      // the web tier may have precomputed per-lead page spans — accepted
+      // only if they cleanly partition the authoritative page set (see
+      // validateSegments). Anything off → one unit per page, byte-for-byte
+      // the prior behavior.
+      let segments = validateSegments(batch.leadSegments, pageCount);
+      let groupedBy: 'web' | 'gcf' | null = segments ? 'web' : null;
+      // The web tier precomputes groupings, but its bundled pdf-parse has been
+      // unreliable in the Vercel serverless runtime (it silently extracted no
+      // text, so no groupings were written). When that happens, compute them
+      // here in the GCF's normal Node runtime, where pdf-parse is reliable.
+      if (!segments) {
+        try {
+          const computed = await computeLeadSegmentsFromPdf(pdfBuffer);
+          segments = validateSegments(computed, pageCount);
+          if (segments) groupedBy = 'gcf';
+        } catch (segErr) {
+          emit('leads_batch_segment_compute_failed', {
+            agent_id: agentId,
+            batch_id: batchId,
+            error: segErr instanceof Error ? segErr.message : String(segErr),
+          });
+        }
+      }
+      const unitBuffers = segments
+        ? await splitToSegments(parentDoc, segments)
+        : await splitToPages(parentDoc, pageCount);
+      if (segments) {
+        emit('leads_batch_grouped', {
+          agent_id: agentId,
+          batch_id: batchId,
+          pages: pageCount,
+          units: unitBuffers.length,
+          grouped_by: groupedBy,
+        });
+      }
 
-      const perPageBuffers = await splitToPages(parentDoc, pageCount);
+      // Stamp the authoritative unit count (the create route seeded a client
+      // page estimate so the progress bar could render immediately). For a
+      // grouped CIE packet this corrects e.g. 99 pages → 49 leads.
+      await setTotalPages(batch, unitBuffers.length);
+
       const anthropic = getAnthropicClient();
 
       let stoppedEarly: 'cancelled' | 'token_lost' | null = null;
 
-      for (let chunkStart = 0; chunkStart < perPageBuffers.length; chunkStart += EXTRACTION_CONCURRENCY) {
+      for (let chunkStart = 0; chunkStart < unitBuffers.length; chunkStart += EXTRACTION_CONCURRENCY) {
         // Cheap pre-chunk check so a cancelled batch doesn't keep burning
         // Claude calls (the expensive part). The counter txn below is the
         // authoritative guard against races.
@@ -161,7 +203,7 @@ export const processLeadBatch = onDocumentCreated(
           break;
         }
 
-        const chunkBuffers = perPageBuffers.slice(chunkStart, chunkStart + EXTRACTION_CONCURRENCY);
+        const chunkBuffers = unitBuffers.slice(chunkStart, chunkStart + EXTRACTION_CONCURRENCY);
         const results = await Promise.allSettled(
           chunkBuffers.map(async (buf) => {
             if (buf.byteLength === 0) throw new Error('split failed');
@@ -351,6 +393,7 @@ async function lockBatch(
         gcsPath,
         sourceFileUrl: typeof data.sourceFileUrl === 'string' ? data.sourceFileUrl : '',
         sourceFileStoragePath: typeof data.sourceFileStoragePath === 'string' ? data.sourceFileStoragePath : '',
+        leadSegments: parseSegments(data.leadSegments),
         processingToken,
         attempts: attempts + 1,
       },
@@ -552,6 +595,70 @@ async function splitToPages(parentDoc: PDFDocument, pageCount: number): Promise<
     }
   }
   return buffers;
+}
+
+/**
+ * Build one buffer per lead from precomputed page groups: each group's pages
+ * are copied (in order) into a single mini-PDF handed to the extractor as
+ * one document. Used for multi-page-lead packets (e.g. Symmetry CIE).
+ */
+async function splitToSegments(parentDoc: PDFDocument, segments: number[][]): Promise<Buffer[]> {
+  const buffers: Buffer[] = [];
+  for (const pages of segments) {
+    try {
+      const doc = await PDFDocument.create();
+      const copied = await doc.copyPages(parentDoc, pages);
+      for (const pg of copied) doc.addPage(pg);
+      const bytes = await doc.save();
+      buffers.push(Buffer.from(bytes));
+    } catch (err) {
+      emit('leads_batch_segment_split_failed', {
+        pages: pages.map((p) => p + 1).join('+'),
+        error: errMessage(err, 'split failed'),
+      });
+      buffers.push(Buffer.alloc(0)); // marker → fails extraction, counted a failed unit
+    }
+  }
+  return buffers;
+}
+
+/**
+ * Shape-parse the optional `leadSegments` field off the batch doc into
+ * number[][] (0-based page-index groups), or null when absent/malformed.
+ * Pure structural validation; range/coverage is checked in validateSegments
+ * once the authoritative page count is known.
+ */
+function parseSegments(value: unknown): number[][] | null {
+  if (!Array.isArray(value) || value.length === 0) return null;
+  const out: number[][] = [];
+  for (const seg of value) {
+    if (!Array.isArray(seg) || seg.length === 0) return null;
+    const grp: number[] = [];
+    for (const n of seg) {
+      if (typeof n !== 'number' || !Number.isInteger(n) || n < 0) return null;
+      grp.push(n);
+    }
+    out.push(grp);
+  }
+  return out;
+}
+
+/**
+ * Accept precomputed segments only when they form a clean partition of the
+ * real pages: every page 0..pageCount-1 covered exactly once, nothing out of
+ * range. Any skew (e.g. the web split count disagrees with the authoritative
+ * one) returns null → caller falls back to one-unit-per-page.
+ */
+function validateSegments(segments: number[][] | null, pageCount: number): number[][] | null {
+  if (!segments) return null;
+  const seen = new Set<number>();
+  for (const grp of segments) {
+    for (const n of grp) {
+      if (n >= pageCount || seen.has(n)) return null;
+      seen.add(n);
+    }
+  }
+  return seen.size === pageCount ? segments : null;
 }
 
 // ─── Helpers ─────────────────────────────────────────────

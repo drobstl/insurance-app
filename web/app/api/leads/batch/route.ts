@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminAuth, getAdminStorage } from '../../../../lib/firebase-admin';
 import { createLeadBatch } from '../../../../lib/leads-batch-store';
+import { computeLeadSegmentsFromPdf } from '../../../../lib/cie-lead-segment-server';
 
 export const maxDuration = 60;
 
@@ -12,6 +13,10 @@ export const maxDuration = 60;
 // the progress bar).
 const MAX_BATCH_PAGES = 100;
 const READ_URL_TTL_MS = 365 * 24 * 60 * 60 * 1000;
+// Only inspect compact PDFs for a multi-page-lead template. A ~49-lead
+// Symmetry CIE packet is well under 1MB; big scanned bundles are never CIE
+// and shouldn't be pulled back onto the web tier just to look.
+const SEGMENT_DETECT_MAX_BYTES = 8 * 1024 * 1024;
 
 interface CreateBatchBody {
   gcsPath?: string;
@@ -80,12 +85,39 @@ export async function POST(req: NextRequest) {
       console.error('[leads/batch] read-URL signing failed:', signErr);
     }
 
+    // Best-effort: detect a repeating multi-page lead template (e.g. a
+    // Symmetry CIE packet, where one lead spans two pages) so the processor
+    // groups each lead's pages instead of making a broken lead from each
+    // page. Gated to compact PDFs. Any failure leaves leadSegments undefined
+    // and the processor falls back to its one-lead-per-page default — never
+    // fatal to the upload.
+    let leadSegments: number[][] | undefined;
+    try {
+      const fileRef = getAdminStorage().bucket().file(gcsPath);
+      const [meta] = await fileRef.getMetadata();
+      const sizeBytes = Number(meta.size ?? 0);
+      if (sizeBytes > 0 && sizeBytes <= SEGMENT_DETECT_MAX_BYTES) {
+        const [buf] = await fileRef.download();
+        const seg = await computeLeadSegmentsFromPdf(buf);
+        if (seg && seg.kind === 'symmetry-cie') {
+          leadSegments = seg.segments;
+          console.log(
+            '[leads/batch] CIE packet detected:',
+            JSON.stringify({ pages: pageCount, leads: seg.segments.length, anomalousPages: seg.anomalousPages.length }),
+          );
+        }
+      }
+    } catch (segErr) {
+      console.warn('[leads/batch] segment detection skipped:', segErr instanceof Error ? segErr.message : segErr);
+    }
+
     const batchId = await createLeadBatch(agentId, {
       fileName,
       gcsPath,
       sourceFileUrl,
       sourceFileStoragePath: gcsPath,
       pageCount,
+      leadSegments,
     });
 
     return NextResponse.json({ batchId, status: 'splitting' });
