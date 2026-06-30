@@ -682,7 +682,7 @@ export default function AppointmentsLeadsTab({
         <div className="bg-white rounded-[5px] border border-gray-200 p-5">
           <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-1">Pre-sell your leads</h3>
           <p className="text-[13px] text-[#4b5563] mb-4 leading-relaxed">
-            This is selling in 2026, not 1996. Every lead you book gets a private home inside your AgentForLife app &mdash; your intro, real client stories, and a quick intake &mdash; that warms them up before your first call, so they show up already trusting you. It&rsquo;s a first appointment that runs itself &mdash; and no one else in the industry is handing you this. Turn it on with an intro video below (leads log in with the one-tap code from their booking text); leave it empty and that screen stays blank.
+            This is selling in 2026, not 1996. Every lead you book gets a private home inside your AgentForLife app &mdash; your intro, real client stories, and a quick intake &mdash; and how they use it tells you who&rsquo;s worth your time. A lead who downloads it is going to show up; one who finishes the intake is ready to buy. So your hours go to the leads that pay, not the ghosts &mdash; an edge no one else in the industry is handing you. Leads log in with just their phone number. Turn it on with an intro video below; leave it empty and that screen stays blank.
           </p>
 
           {/* Intro slot */}
