@@ -259,33 +259,31 @@ input[type="range"].slider-thumb:focus::-webkit-slider-thumb {
    into the mock's design language (accent edge + big sentence-case titles)
    WITHOUT editing the shared tab components. Scoped to .settings-skin, so
    the live /dashboard/settings is completely untouched. */
+/* Restraint pass: no accent stripe, no second font, no decoration —
+   hierarchy comes from a single typeface, weight, and whitespace. */
 .settings-skin .bg-white.border.p-5 {
-  border-radius: 14px;
-  border-color: #ececec;
-  border-left: 3px solid #44bbaa;
+  border-radius: 12px;
+  border-color: #ededed;
   padding: 1.25rem 1.4rem;
 }
-/* Card titles: the brand display font (Museo Sans Cond), smaller than the
-   section header — so titles read as a different species from body text,
-   and sit clearly below the section. */
+/* Card titles: restrained — one step below the section header, same
+   typeface as the body. */
 .settings-skin h3.uppercase {
-  font-family: 'Museo Sans Cond', system-ui, sans-serif;
   text-transform: none;
   letter-spacing: 0;
-  font-size: 16px;
-  font-weight: 500;
-  color: #1a1a1a;
-  margin-bottom: 0.5rem;
+  font-size: 15px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 0.4rem;
 }
-/* Group headers ("Messages you send" / "Runs automatically") become quiet
-   uppercase eyebrows — a divider, not a competing headline — and their
-   one-line descriptions are dropped to cut text clutter. */
+/* Group headers become quiet neutral eyebrows (a divider, not a competing
+   headline); their one-line descriptions are dropped to cut clutter. */
 .settings-skin h2.uppercase {
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.07em;
   font-size: 11px;
   font-weight: 600;
-  color: #6f9a92;
+  color: #9ca3af;
 }
 .settings-skin h2.uppercase + p {
   display: none;
