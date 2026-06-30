@@ -29,10 +29,13 @@ import {
   getFifResetChip,
   isAppointmentOutcomeChipStatus,
 } from '../../../lib/appointment-outcome-chip';
+import { isLeadCreditEligible, getLeadCreditChip, LEAD_CREDIT_NOTE } from '../../../lib/lead-credit-chip';
+import { ageFromDob } from '../../../lib/household';
 import type { LeadScore } from '../../../lib/lead-assessment';
 import { LeadTempChip } from '../../../components/LeadTempChip';
 import { LeadTagChips } from '../../../components/LeadTagChips';
 import { LeadFilterBar } from '../../../components/LeadFilterBar';
+import { SmartLeadSearch } from '../../../components/SmartLeadSearch';
 import SavedLeadsBar from '../../../components/SavedLeadsBar';
 import { type LeadFilters, EMPTY_LEAD_FILTERS, hasActiveFilters, coerceLeadFilters } from '../../../lib/lead-filters';
 import { type SavedLeadSegment } from '../../../lib/lead-segment';
@@ -57,9 +60,16 @@ interface Lead {
   email?: string;
   // Lead's age in years, populated by the PDF extractor on import. Sortable.
   ageYears?: number;
+  // Underwriting fields off the lead doc — surfaced here so the filter bar /
+  // natural-language search can narrow on them (age range, smoker, gender).
+  dateOfBirth?: string;
+  gender?: 'M' | 'F';
+  smokerStatus?: 'Y' | 'N';
   createdAt?: Timestamp | null;
   appDownloadedAt?: string | null;
   assessmentCompletedAt?: Timestamp | null;
+  // Stamped when the teed-up first-touch SMS is sent (drives "Intro sent").
+  introTextSentAt?: Timestamp | null;
   leadScore?: LeadScore | null;
   convertedToClientId?: string | null;
   monthlyMortgageAmount?: number;
@@ -962,8 +972,13 @@ function LeadsPageInner() {
     if (filters.tagIds.length) {
       result = result.filter((lead) => filters.tagIds.every((id) => (lead.tagIds ?? []).includes(id)));
     }
-    if (filters.state) {
-      result = result.filter((lead) => (lead.address?.state ?? '').toUpperCase() === filters.state);
+    if (filters.states.length) {
+      const want = new Set(filters.states.map((s) => s.toUpperCase()));
+      result = result.filter((lead) => want.has((lead.address?.state ?? '').toUpperCase()));
+    }
+    if (filters.city) {
+      const needle = filters.city.toLowerCase();
+      result = result.filter((lead) => (lead.address?.city ?? '').toLowerCase().includes(needle));
     }
     if (filters.dateFrom || filters.dateTo) {
       const fromMs = filters.dateFrom ? Date.parse(`${filters.dateFrom}T00:00:00`) : -Infinity;
@@ -973,8 +988,71 @@ function LeadsPageInner() {
         return t != null && t >= fromMs && t <= toMs;
       });
     }
+    if (filters.temperatures.length) {
+      const want = new Set(filters.temperatures);
+      result = result.filter((lead) => {
+        const t = lead.leadScore?.temperature;
+        return !!t && want.has(t);
+      });
+    }
+    if (filters.dialOutcomes.length) {
+      const want = new Set<string>(filters.dialOutcomes);
+      result = result.filter((lead) => !!lead.lastDialOutcome && want.has(lead.lastDialOutcome));
+    }
+    if (filters.creditEligible) {
+      result = result.filter((lead) => isLeadCreditEligible(lead.ageYears, lead.dateOfBirth));
+    }
+    if (filters.ageMin != null || filters.ageMax != null) {
+      const lo = filters.ageMin ?? -Infinity;
+      const hi = filters.ageMax ?? Infinity;
+      result = result.filter((lead) => {
+        const age = lead.ageYears ?? ageFromDob(lead.dateOfBirth);
+        return typeof age === 'number' && age >= lo && age <= hi;
+      });
+    }
+    if (filters.appDownloaded) {
+      const want = filters.appDownloaded === 'yes';
+      result = result.filter((lead) => !!lead.appDownloadedAt === want);
+    }
+    if (filters.assessmentCompleted) {
+      const want = filters.assessmentCompleted === 'yes';
+      result = result.filter((lead) => !!lead.assessmentCompletedAt === want);
+    }
+    if (filters.introSent) {
+      const want = filters.introSent === 'yes';
+      result = result.filter((lead) => !!lead.introTextSentAt === want);
+    }
+    if (filters.smoker) {
+      result = result.filter((lead) => lead.smokerStatus === filters.smoker);
+    }
+    if (filters.gender) {
+      result = result.filter((lead) => lead.gender === filters.gender);
+    }
+    if (filters.hasMortgage) {
+      result = result.filter((lead) => (lead.monthlyMortgageAmount ?? 0) > 0);
+    }
+    if (filters.neverContacted) {
+      result = result.filter((lead) => !lead.lastDialAt);
+    }
+    if (filters.notContactedDays != null) {
+      const cutoff = Date.now() - filters.notContactedDays * 86400000;
+      result = result.filter((lead) => {
+        const t = lead.lastDialAt?.toDate().getTime();
+        return t == null || t < cutoff;
+      });
+    }
+    if (filters.contactedWithinDays != null) {
+      const cutoff = Date.now() - filters.contactedWithinDays * 86400000;
+      result = result.filter((lead) => {
+        const t = lead.lastDialAt?.toDate().getTime();
+        return t != null && t >= cutoff;
+      });
+    }
     if (filters.followUpDue) {
       result = result.filter((lead) => isFollowUpDue(lead.followUpAt));
+    }
+    if (filters.hasFollowUp) {
+      result = result.filter((lead) => followUpMillis(lead.followUpAt) != null);
     }
 
     // Multi-word AND: every whitespace-separated term must match SOME field
@@ -1787,30 +1865,15 @@ function LeadsPageInner() {
                 because the queue's purpose is "who should I call next"
                 — searching by name there would defeat the priority sort. */}
             {view === 'all' && (
-              <div className="relative w-full max-w-xs mb-1.5">
-                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#707070]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                <input
-                  type="text"
-                  placeholder="Search leads…"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-8 py-1.5 bg-white rounded-[5px] border border-[#d0d0d0] text-sm text-[#000000] placeholder-[#707070] focus:outline-none focus:border-[#45bcaa]"
-                />
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full text-[#707070] hover:bg-gray-100 flex items-center justify-center"
-                    aria-label="Clear search"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                )}
-              </div>
+              <SmartLeadSearch
+                user={user}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                filters={filters}
+                setFilters={setFilters}
+                tags={agentProfile.leadTags ?? []}
+                availableStates={availableStates}
+              />
             )}
             {view === 'all' && (
               <div className="flex items-center gap-x-4 gap-y-2 flex-wrap">
@@ -2514,6 +2577,17 @@ function LeadsPageInner() {
                             {lead.leadScore && (
                               <LeadTempChip temperature={lead.leadScore.temperature} />
                             )}
+                            {isLeadCreditEligible(lead.ageYears) && (() => {
+                              const chip = getLeadCreditChip();
+                              return (
+                                <span
+                                  title={LEAD_CREDIT_NOTE}
+                                  className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded ${chip.classes}`}
+                                >
+                                  {chip.label}
+                                </span>
+                              );
+                            })()}
                             <LeadTagChips tagIds={lead.tagIds} tags={agentProfile.leadTags ?? []} />
                             {(() => {
                               const fu = followUpChip(lead.followUpAt);
