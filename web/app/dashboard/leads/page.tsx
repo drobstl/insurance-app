@@ -29,6 +29,7 @@ import {
   getFifResetChip,
   isAppointmentOutcomeChipStatus,
 } from '../../../lib/appointment-outcome-chip';
+import { isLeadCreditEligible, getLeadCreditChip, LEAD_CREDIT_NOTE } from '../../../lib/lead-credit-chip';
 import type { LeadScore } from '../../../lib/lead-assessment';
 import { LeadTempChip } from '../../../components/LeadTempChip';
 import { LeadTagChips } from '../../../components/LeadTagChips';
@@ -2512,6 +2513,17 @@ function LeadsPageInner() {
                             {lead.leadScore && (
                               <LeadTempChip temperature={lead.leadScore.temperature} />
                             )}
+                            {isLeadCreditEligible(lead.ageYears) && (() => {
+                              const chip = getLeadCreditChip();
+                              return (
+                                <span
+                                  title={LEAD_CREDIT_NOTE}
+                                  className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded ${chip.classes}`}
+                                >
+                                  {chip.label}
+                                </span>
+                              );
+                            })()}
                             <LeadTagChips tagIds={lead.tagIds} tags={agentProfile.leadTags ?? []} />
                             {(() => {
                               const fu = followUpChip(lead.followUpAt);
