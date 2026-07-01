@@ -817,7 +817,26 @@ function LeadsPageInner() {
     setUploading(true);
     setUploadError(null);
     try {
-      const parsed = await parseLeadFile(file);
+      const token = await user.getIdToken();
+      // Columns the deterministic parser doesn't recognize get handed to
+      // Claude, which maps arbitrary vendor headers onto our known lead fields
+      // (the same intelligence the PDF path gets). Soft-fails to the
+      // deterministic result if the endpoint errors — never blocks the import.
+      const parsed = await parseLeadFile(file, {
+        mapColumns: async (columns) => {
+          const res = await fetch('/api/leads/map-columns', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ columns }),
+          });
+          if (!res.ok) return [];
+          const data = await res.json().catch(() => ({}));
+          return Array.isArray(data?.mappings) ? data.mappings : [];
+        },
+      });
       if (parsed.error) {
         setUploadError(parsed.error);
         return;
@@ -827,7 +846,6 @@ function LeadsPageInner() {
         return;
       }
 
-      const token = await user.getIdToken();
       const CHUNK = 50;
       const leads: Array<{ leadId: string; leadCode: string; name: string; codeKind: 'derived' | 'fallback'; page: number }> = [];
       const duplicates: Array<{ page: number; phone: string; name: string; existingLeadId: string; existingLeadCode: string; existingLeadName?: string }> = [];
@@ -1991,9 +2009,11 @@ function LeadsPageInner() {
                   {uploading ? 'Reading…' : 'Drop a lead form PDF, or a CSV / Excel lead list here'}
                 </p>
                 <p className="text-xs text-[#005851]/70 mt-0.5">
-                  PDFs get read automatically. For a spreadsheet, each row becomes one
-                  lead — we pull name, phone, email, date of birth, and address; other
-                  columns are ignored.
+                  PDFs and spreadsheets both get read automatically. Each row becomes one
+                  lead, and we pull everything you need to call and quote —
+                  name, phone, email, date of birth, address, mortgage, tobacco,
+                  co-borrower, spouse, and more — whatever your list has, no matter
+                  how the columns are named.
                 </p>
               </div>
             </div>
