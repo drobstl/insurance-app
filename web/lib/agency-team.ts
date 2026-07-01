@@ -191,6 +191,11 @@ export function buildCoachingRadar(reports: CoachingReport[]): CoachingRadar {
 export interface TeamMemberRow {
   uid: string;
   name: string;
+  dials: number;
+  contactRate: number;
+  booked: number;
+  bookRate: number;
+  closeRate: number;
   sales: { count: number; apv: number };
   netPlacedApv: number;
   chargebacks: number; // count in the window
@@ -198,6 +203,11 @@ export interface TeamMemberRow {
   showRate: number;
   referralsReceived: number;
   rewrites: number;
+  // Period-over-period movement (sales count vs the prior equal-length
+  // window). Null when there's no prior-window baseline yet. This is the
+  // v1 "trend" signal the Coaching Intelligence triage ranks on; a true
+  // personal 4-week rolling baseline is a later upgrade.
+  deltaPct: number | null;
   coaching: CoachingRadar;
 }
 
@@ -215,6 +225,7 @@ export interface TeamOverview {
     totalSalesApv: number;
     totalNetPlacedApv: number;
     totalChargebacks: number;
+    totalBooked: number;
     avgShowRate: number;
   };
 }
@@ -237,6 +248,11 @@ function rowFromStats(uid: string, name: string, stats: ActivityStats, coaching:
   return {
     uid,
     name,
+    dials: stats.dials.total,
+    contactRate: stats.dials.contactRate,
+    booked: stats.appointments.booked,
+    bookRate: stats.appointments.bookRate,
+    closeRate: stats.sales.closeRate,
     sales: { count: stats.sales.count, apv: stats.sales.apv },
     netPlacedApv: stats.apvLifecycle.netPlaced,
     chargebacks: stats.chargebacks.count,
@@ -244,6 +260,7 @@ function rowFromStats(uid: string, name: string, stats: ActivityStats, coaching:
     showRate: stats.appointments.showRate,
     referralsReceived: stats.referralsActivity.received,
     rewrites: stats.rewrites.count,
+    deltaPct: stats.sales.deltaPct,
     coaching,
   };
 }
@@ -269,12 +286,14 @@ export async function getTeamOverview(
   let totalSalesApv = 0;
   let totalNetPlacedApv = 0;
   let totalChargebacks = 0;
+  let totalBooked = 0;
   let showRateSum = 0;
   for (const r of rows) {
     totalSales += r.sales.count;
     totalSalesApv += r.sales.apv;
     totalNetPlacedApv += r.netPlacedApv;
     totalChargebacks += r.chargebacks;
+    totalBooked += r.booked;
     showRateSum += r.showRate;
   }
 
@@ -290,6 +309,7 @@ export async function getTeamOverview(
       totalSalesApv,
       totalNetPlacedApv,
       totalChargebacks,
+      totalBooked,
       avgShowRate: rows.length > 0 ? round1(showRateSum / rows.length) : 0,
     },
   };
