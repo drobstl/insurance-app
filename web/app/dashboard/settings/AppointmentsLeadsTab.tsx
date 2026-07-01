@@ -464,7 +464,7 @@ export default function AppointmentsLeadsTab({
                     <span className="text-sm font-semibold text-[#111827]">Send my scheduling link</span>
                     {mode === 'link' && <CheckDot />}
                   </div>
-                  <p className="text-xs text-[#707070] mt-1">They tap your Calendly/Cal.com link and pick a time on your page.</p>
+                  <p className="text-xs text-[#707070] mt-1">Works with <span className="font-medium text-[#111827]">any calendar</span> — Calendly, Cal.com, Acuity, or a Google link. They pick a time on your page.</p>
                 </button>
                 <div
                   role={connected ? 'button' : undefined}
@@ -478,7 +478,7 @@ export default function AppointmentsLeadsTab({
                     </span>
                     {mode === 'ai' && connected && <CheckDot />}
                   </div>
-                  <p className="text-xs text-[#707070] mt-1">The AI offers your open times and books it right on your Google Calendar — no link, no back-and-forth.</p>
+                  <p className="text-xs text-[#707070] mt-1">Needs <span className="font-medium text-[#111827]">Google Calendar</span>. The AI offers your open times and books it right on your calendar — no link, no back-and-forth.</p>
                   {!connected && (
                     <div className="mt-2.5">
                       <button
