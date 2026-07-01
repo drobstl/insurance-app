@@ -27,7 +27,23 @@ export default function WhatsNewSpotlight() {
   if (!ready) return null;
 
   const fresh = PATCH_WHATS_NEW.filter((e) => !seenDate || e.date > seenDate);
-  if (fresh.length === 0) return null;
+
+  // Nothing unseen → a calm "caught up" tile (quieter than the active
+  // NEW state) so the top-row rail stays balanced instead of leaving a
+  // hole next to Refer & Earn.
+  if (fresh.length === 0) {
+    return (
+      <div className="h-full w-full bg-[#f4f9f8] rounded-xl border-2 border-[#cfe6e0] border-r-[4px] border-b-[4px] p-3 flex flex-col justify-center">
+        <div className="flex items-center gap-1.5" style={{ color: '#0d8f7a' }}>
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          <span className="text-[12px] font-bold">All caught up</span>
+        </div>
+        <p className="text-[10px] text-[#5f7a72] mt-1">New features land here.</p>
+      </div>
+    );
+  }
 
   const newest = PATCH_WHATS_NEW.reduce((max, e) => (e.date > max ? e.date : max), '');
   const lead = fresh[0];
