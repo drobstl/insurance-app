@@ -2,17 +2,23 @@
  * Pre-connection "promise" score for a fresh lead — how promising a lead
  * looks BEFORE the agent has spoken to them, from data known at ingestion.
  *
- * Why this exists: the call queue's never-dialed tier orders fresh leads by
- * recency alone (newest first), so a hot call-in with a big mortgage sits at
- * the same level as a cold mail-in card from the same afternoon. When a batch
- * of leads lands, the good ones get buried by volume. This score ranks the
+ * Why this exists: the call queue's never-dialed tier ordered fresh leads by
+ * recency alone, so a lead with a $480k mortgage sat at the same level as one
+ * with no mortgage on file from the same afternoon. When a batch of leads
+ * lands, the ones worth the most get buried by volume. This score ranks the
  * never-dialed pile so "Start calling" works the most promising leads first.
  *
- * Signals + weighting mirror how we actually triage (Daniel, Jun 30):
- * call-ins first → freshest → bigger mortgages, with age-fit and a co-borrower
- * as light nudges. App-engagement is deliberately NOT a signal: a lead can't
- * open the app until after we've reached them, so it can never tell us who to
- * call first.
+ * Signals: freshness (speed-to-lead), mortgage size, age fit, and a
+ * co-borrower. Weighting follows how we triage (Daniel, Jun 30):
+ * freshest → bigger mortgages, with age-fit and a co-borrower as light nudges.
+ *
+ * Deliberately NOT in the ranking:
+ *  - Lead TYPE / source (call-in vs mail-in vs digital). Intent by source is a
+ *    judgment call — Daniel rates mail-ins the HIGHEST intent, call-ins next,
+ *    digital lowest, but it varies — so lead type stays an informational chip
+ *    the agent reads with their own judgment, not a ranking lever.
+ *  - App engagement — a lead can't open the app until after we've reached
+ *    them, so it can never tell us who to call first.
  *
  * The score is in [0,1]. It is the sub-sort inside the never-dialed queue tier
  * (see `queueLeads` in the leads page). `leadPriorityReasons` explains the
@@ -24,8 +30,6 @@
  */
 
 export interface LeadPriorityInput {
-  /** Lead source / form type, e.g. 'Call-In' | 'Digital' | 'Mail-In'. */
-  formType?: string | null;
   /** Lead creation time in epoch ms (speed-to-lead / freshness). */
   createdAtMs?: number | null;
   /** Mortgage LOAN amount (mortgageDetails.balance), USD — NOT the monthly payment. */
@@ -36,15 +40,13 @@ export interface LeadPriorityInput {
   hasCoborrower?: boolean;
 }
 
-// Relative weights — they sum to 1.0. Order mirrors how we triage: source
-// dominates, then freshness, then mortgage size; age + co-borrower are light
-// nudges. Tune the blend here.
+// Relative weights — they sum to 1.0. Order mirrors how we triage: freshness
+// first, then mortgage size; age + co-borrower are light nudges. Tune here.
 export const PRIORITY_WEIGHTS = {
-  source: 0.38,
-  freshness: 0.26,
-  mortgage: 0.2,
-  ageFit: 0.1,
-  coborrower: 0.06,
+  freshness: 0.45,
+  mortgage: 0.3,
+  ageFit: 0.15,
+  coborrower: 0.1,
 } as const;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -54,22 +56,6 @@ const FRESH_FLOOR_DAYS = 14;
 // Mortgage balance at which the size signal saturates — beyond this, bigger
 // doesn't keep adding priority (a $1.2M and a $600k loan are both "big").
 const MORTGAGE_SATURATION = 600_000;
-
-/** Source intent: a call-in dialed the number on the mailer themselves
- *  (highest intent); a digital form is mid; a returned mail card is passive;
- *  CSV/manual/unknown imports are neutral-low. */
-function sourceScore(formType?: string | null): number {
-  switch ((formType || '').trim().toLowerCase()) {
-    case 'call-in':
-      return 1.0;
-    case 'digital':
-      return 0.65;
-    case 'mail-in':
-      return 0.45;
-    default:
-      return 0.3;
-  }
-}
 
 /** Freshness: full credit for the first 24h, decaying to near-zero by the
  *  ~2-week exclusivity floor. Unknown created time → neutral-ish (don't
@@ -108,7 +94,6 @@ function ageFitScore(ageYears?: number | null): number {
 export function leadPriorityScore(input: LeadPriorityInput, nowMs: number): number {
   const w = PRIORITY_WEIGHTS;
   return (
-    w.source * sourceScore(input.formType) +
     w.freshness * freshnessScore(input.createdAtMs, nowMs) +
     w.mortgage * mortgageScore(input.mortgageBalance) +
     w.ageFit * ageFitScore(input.ageYears) +
@@ -116,25 +101,12 @@ export function leadPriorityScore(input: LeadPriorityInput, nowMs: number): numb
   );
 }
 
-export type LeadPriorityTier = 'top' | 'strong' | 'standard';
-
-/** Bucket a score for UI emphasis. Thresholds chosen so a fresh call-in (any
- *  mortgage) lands in 'top', a decent digital/mail-in lands 'strong', and a
- *  stale or low-signal lead is 'standard'. */
-export function leadPriorityTier(score: number): LeadPriorityTier {
-  if (score >= 0.66) return 'top';
-  if (score >= 0.45) return 'strong';
-  return 'standard';
-}
-
 /** Short, agent-facing "why this is near the top" — only genuinely positive
  *  contributors, most important first. Empty for unremarkable leads, so the
- *  chip simply doesn't render. */
+ *  chip simply doesn't render. Lead TYPE is intentionally absent — it's shown
+ *  as its own informational chip, not a ranking reason. */
 export function leadPriorityReasons(input: LeadPriorityInput, nowMs: number): string[] {
   const out: string[] = [];
-  const ft = (input.formType || '').trim().toLowerCase();
-  if (ft === 'call-in') out.push('Called in');
-  else if (ft === 'digital') out.push('Online form');
   if (freshnessScore(input.createdAtMs, nowMs) >= 0.8) out.push('Fresh');
   if (input.mortgageBalance && input.mortgageBalance >= 200_000) {
     out.push(`$${Math.round(input.mortgageBalance / 1000)}k mortgage`);
@@ -148,7 +120,6 @@ export function leadPriorityReasons(input: LeadPriorityInput, nowMs: number): st
  *  `mortgageDetails.balance` (the loan amount) — NOT `monthlyMortgageAmount`,
  *  which is the monthly payment and usually absent on fresh leads. */
 export function toPriorityInput(lead: {
-  formType?: string;
   createdAt?: { toMillis?: () => number; toDate?: () => Date } | null;
   mortgageDetails?: { balance?: number } | null;
   ageYears?: number;
@@ -157,7 +128,6 @@ export function toPriorityInput(lead: {
   const createdAtMs =
     lead.createdAt?.toMillis?.() ?? lead.createdAt?.toDate?.().getTime() ?? null;
   return {
-    formType: lead.formType ?? null,
     createdAtMs,
     mortgageBalance: lead.mortgageDetails?.balance ?? null,
     ageYears: lead.ageYears ?? null,

@@ -2349,6 +2349,24 @@ function LeadsPageInner() {
                               {lead.leadScore && (
                                 <LeadTempChip temperature={lead.leadScore.temperature} />
                               )}
+                              {(() => {
+                                // Lead type — informational only, NOT a ranking
+                                // input (intent by source is the agent's call).
+                                const ft = lead.formType;
+                                if (!ft || ft === 'Manual' || ft === 'Unknown') return null;
+                                const cls =
+                                  ft === 'Call-In' ? 'bg-[#daf3f0] text-[#005851]'
+                                  : ft === 'Digital' ? 'bg-[#e6f1fb] text-[#185fa5]'
+                                  : 'bg-[#f1efe8] text-[#5f5e5a]';
+                                return (
+                                  <span
+                                    className={`inline-flex items-center shrink-0 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded ${cls}`}
+                                    title="Lead type — informational, not part of the ranking"
+                                  >
+                                    {ft}
+                                  </span>
+                                );
+                              })()}
                             </div>
                             <div className="text-xs text-[#707070] mt-0.5 flex items-center gap-2 flex-wrap">
                               <span>{lead.phone}</span>
