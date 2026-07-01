@@ -49,7 +49,12 @@ export async function GET(req: NextRequest) {
       ? rawRange
       : 'month') as ActivityRange;
 
-    const stats = await getActivityStats(agentId, range);
+    // The agent's browser time zone (IANA, e.g. 'America/Chicago') so that
+    // "Today" / "This month" anchor to the agent's own clock, not the
+    // server's UTC. getActivityStats validates it and falls back to UTC.
+    const timeZone = req.nextUrl.searchParams.get('tz') || undefined;
+
+    const stats = await getActivityStats(agentId, range, timeZone);
     return NextResponse.json(stats);
   } catch (error) {
     console.error('agent/activity error:', error);
