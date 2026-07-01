@@ -41,7 +41,7 @@ import { type LeadFilters, EMPTY_LEAD_FILTERS, hasActiveFilters, coerceLeadFilte
 import { type SavedLeadSegment } from '../../../lib/lead-segment';
 import { resolveLeadTags } from '../../../lib/lead-tag';
 import { isFollowUpDue, followUpMillis, followUpChip } from '../../../lib/lead-follow-up';
-import { toPriorityInput, leadPriorityScore, leadPriorityReasons } from '../../../lib/lead-priority';
+import { toPriorityInput, leadPriorityScore } from '../../../lib/lead-priority';
 import { isUsStateCode, US_STATE_NAMES } from '../../../lib/us-states';
 import { parseLeadFile } from '../../../lib/lead-csv-parse';
 import { captureEvent } from '../../../lib/posthog';
@@ -1261,22 +1261,6 @@ function LeadsPageInner() {
       .map(({ lead }) => lead);
   }, [leads, filteredLeads, agentProfile.dialPersistence, pastOutcomeByLead, nextApptByLead]);
 
-  // Pre-connection priority reasons for the never-dialed leads in the queue,
-  // so each fresh row can show WHY it's ranked where it is (e.g. "Called in ·
-  // Fresh · $480k"). Keyed by lead id; only fresh (never-dialed) leads get an
-  // entry — dialed leads show their dial history instead. Empty-reason leads
-  // are omitted so the row simply shows "Never dialed" with no extra noise.
-  const queueReasonsById = useMemo(() => {
-    const nowMs = Date.now();
-    const m = new Map<string, string[]>();
-    for (const lead of leads) {
-      if (lead.lastDialAt) continue;
-      const reasons = leadPriorityReasons(toPriorityInput(lead), nowMs);
-      if (reasons.length) m.set(lead.id, reasons);
-    }
-    return m;
-  }, [leads]);
-
   // True when an active search/filter/saved-list is scoping the dial queue to
   // a subset of the book (drives the "calling your filtered list" indicator).
   const queueScoped = hasActiveFilters(filters) || !!searchQuery.trim();
@@ -2390,16 +2374,6 @@ function LeadsPageInner() {
                                 <>
                                   <span>·</span>
                                   <span className="text-[#005851] font-semibold">Never dialed</span>
-                                  {(() => {
-                                    const reasons = queueReasonsById.get(lead.id);
-                                    if (!reasons || reasons.length === 0) return null;
-                                    return (
-                                      <>
-                                        <span>·</span>
-                                        <span className="text-[#92500D] font-semibold">{reasons.join(' · ')}</span>
-                                      </>
-                                    );
-                                  })()}
                                 </>
                               )}
                             </div>
