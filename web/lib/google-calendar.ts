@@ -203,6 +203,49 @@ export async function createCalendarEvent(args: {
   return { id: data.id, htmlLink: data.htmlLink, hangoutLink: data.hangoutLink };
 }
 
+/**
+ * List timed events in [timeMinIso, timeMaxIso) for busy/conflict checks.
+ * Uses the read side of the calendar.events scope (singleEvents expands
+ * recurrences). All-day events (no dateTime) are skipped — they don't block
+ * a timed appointment slot.
+ */
+export async function listEvents(args: {
+  accessToken: string;
+  calendarId: string;
+  timeMinIso: string;
+  timeMaxIso: string;
+}): Promise<Array<{ startIso: string; endIso: string }>> {
+  const params = new URLSearchParams({
+    timeMin: args.timeMinIso,
+    timeMax: args.timeMaxIso,
+    singleEvents: 'true',
+    orderBy: 'startTime',
+    maxResults: '250',
+  });
+  const url = `${calendarApiBase(args.calendarId)}?${params.toString()}`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${args.accessToken}` },
+  });
+  if (!res.ok) {
+    throw new Error(`listEvents failed: ${await readError(res)}`);
+  }
+  const data = (await res.json()) as {
+    items?: Array<{
+      start?: { dateTime?: string };
+      end?: { dateTime?: string };
+      status?: string;
+    }>;
+  };
+  const out: Array<{ startIso: string; endIso: string }> = [];
+  for (const item of data.items ?? []) {
+    if (item.status === 'cancelled') continue;
+    const s = item.start?.dateTime;
+    const e = item.end?.dateTime;
+    if (s && e) out.push({ startIso: s, endIso: e });
+  }
+  return out;
+}
+
 export async function patchCalendarEvent(args: {
   accessToken: string;
   calendarId: string;

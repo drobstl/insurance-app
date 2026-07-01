@@ -75,7 +75,9 @@ export async function autoCompleteRecentAppointment(
       for (const doc of snap.docs) {
         if (seenIds.has(doc.id)) continue;
         seenIds.add(doc.id);
-        const data = doc.data() as { scheduledAt?: Timestamp };
+        const data = doc.data() as { scheduledAt?: Timestamp; kind?: string };
+        // A callback is not a sit — never auto-complete it as a Sold meeting.
+        if (data.kind === 'callback') continue;
         const scheduledAtMs = data.scheduledAt?.toMillis?.();
         if (typeof scheduledAtMs !== 'number') continue;
         if (scheduledAtMs < windowStartMs || scheduledAtMs > windowEndMs) continue;

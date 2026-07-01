@@ -118,8 +118,12 @@ export default function UpcomingAppointmentsCard({
       orderBy('scheduledAt', 'asc'),
     );
     const unsub = onSnapshot(q, (snap) => {
+      // Callbacks share status='scheduled' but aren't appointments — skip them
+      // so they never appear in the upcoming-appointment reminder card.
       setAppointments(
-        snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Appointment, 'id'>) })),
+        snap.docs
+          .filter((d) => (d.data() as { kind?: string }).kind !== 'callback')
+          .map((d) => ({ id: d.id, ...(d.data() as Omit<Appointment, 'id'>) })),
       );
       setLoaded(true);
     }, (err) => {
