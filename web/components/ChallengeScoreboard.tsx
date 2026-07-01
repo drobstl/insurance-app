@@ -9,6 +9,7 @@ import { useCountUp } from '../lib/useCountUp';
 import { CHALLENGE_COLORS as C } from '../lib/challenge-theme';
 import ChallengeRing from './ChallengeRing';
 import StreakFlame from './StreakFlame';
+import ChallengeRecap, { type SessionRecapData } from './ChallengeRecap';
 
 /**
  * Today's Challenge — leads / Call-mode Scoreboard. The bold surface: a
@@ -61,8 +62,12 @@ export default function ChallengeScoreboard({ refreshSignal }: { refreshSignal?:
 
   const prevWonRef = useRef(false);
   const [justWon, setJustWon] = useState(false);
+  // Ephemeral end-of-session recap (cleared on dismiss; not persisted).
+  const [recap, setRecap] = useState<SessionRecapData | null>(null);
 
   const dailyCount = useCountUp(progress?.daily.current ?? 0);
+  // Roll the session count so the optimistic tick moves smoothly.
+  const sessionCount = useCountUp(progress?.session?.current ?? 0, 700);
 
   useEffect(() => {
     if (!progress || !user) return;
@@ -99,8 +104,28 @@ export default function ChallengeScoreboard({ refreshSignal }: { refreshSignal?:
   const sessionDials = progress.session?.current ?? 0;
   const popClass = justWon ? 'tc-pop' : '';
 
-  // ── Power Hour: running / paused / expired ──
+  // Assemble the recap from the live session numbers + Power Hour clock.
+  // Must run BEFORE ph.end() on a manual end (end() clears the clock).
+  const makeRecap = (): SessionRecapData => ({
+    dials: sessionDials,
+    byOutcome: progress.session?.byOutcome ?? {},
+    elapsedMin: Math.max(1, Math.round(ph.elapsedMs / 60_000)),
+    paceHr: ph.elapsedMs >= 120_000 ? Math.round(sessionDials / (ph.elapsedMs / 3_600_000)) : null,
+    dailyWon: daily.won,
+    dailyToGo: daily.toGo,
+    prevDay: daily.previous,
+    streak: streak.current,
+  });
+
+  // A manually-ended session snapshots into `recap`; show it until dismissed.
+  if (recap) return <ChallengeRecap data={recap} onDone={() => setRecap(null)} />;
+
+  // ── Power Hour: running / paused ──
   if (active) {
+    // Timer ran out → recap takes over the card (session's still live, so
+    // read numbers directly); "Done" ends the session and clears it.
+    if (ph.expired) return <ChallengeRecap data={makeRecap()} onDone={ph.end} />;
+
     const timePct = ph.durationMs > 0 ? ph.remainingMs / ph.durationMs : 0;
     const elapsedFrac = ph.durationMs > 0 ? ph.elapsedMs / ph.durationMs : 0;
     const pace = ph.elapsedMs > 120_000 && elapsedFrac > 0 ? Math.round(sessionDials / elapsedFrac) : null;
@@ -109,36 +134,32 @@ export default function ChallengeScoreboard({ refreshSignal }: { refreshSignal?:
     return (
       <div
         className="rounded-2xl p-5 mb-4 flex items-center gap-4"
-        style={{ background: C.stage, border: `2px solid ${ph.expired ? C.progressBright : C.gold}`, borderRightWidth: 5, borderBottomWidth: 5 }}
+        style={{ background: C.stage, border: `2px solid ${C.gold}`, borderRightWidth: 5, borderBottomWidth: 5 }}
       >
         <ChallengeRing
           size={130}
           outer={{ pct: timePct, color: C.gold }}
           inner={{ pct: daily.target > 0 ? sessionDials / daily.target : 0, color: C.progressBright }}
           trackColor={C.ringTrackDark}
-          centerTop={ph.expired ? 'Time!' : mmss(ph.remainingMs)}
-          centerBottom={ph.expired ? undefined : 'left'}
-          centerTopColor={ph.expired ? C.progressBright : C.onDark}
+          centerTop={mmss(ph.remainingMs)}
+          centerBottom="left"
+          centerTopColor={C.onDark}
           centerBottomColor={C.onDarkMuted}
-          mono={!ph.expired}
+          mono
         />
         <div className="flex flex-col gap-2 min-w-0">
           <span className="text-[11px] font-bold tracking-wide" style={{ color: C.gold }}>
-            POWER HOUR · {ph.status === 'paused' ? 'PAUSED' : ph.expired ? 'DONE' : 'LIVE'}
+            POWER HOUR · {ph.status === 'paused' ? 'PAUSED' : 'LIVE'}
           </span>
           <div className="flex items-baseline gap-1.5">
             <span className="text-2xl font-extrabold" style={{ color: C.progressBright }}>
-              {sessionDials}
+              {sessionCount}
             </span>
             <span className="text-[12px]" style={{ color: C.onDarkMuted }}>
               dials this session
             </span>
           </div>
-          {ph.expired ? (
-            <p className="text-[13px]" style={{ color: C.onDarkMuted }}>
-              {sessionDials} dials in {Math.round(ph.durationMs / 60000)} min. Nice block.
-            </p>
-          ) : pace != null ? (
+          {pace != null ? (
             <p className="text-[13px]" style={{ color: C.onDark }}>
               On pace for <span style={{ color: C.progressBright, fontWeight: 700 }}>{pace}</span>
               {beatsYesterday ? ' — beats ' + daily.previous : ''}
@@ -150,26 +171,25 @@ export default function ChallengeScoreboard({ refreshSignal }: { refreshSignal?:
           )}
           <StreakFlame count={streak.current} variant="dark" />
           <div className="flex gap-3 mt-0.5">
-            {ph.expired ? (
-              <button onClick={ph.end} className="text-[12px] font-bold" style={{ color: C.progressBright }}>
-                Done
+            {ph.status === 'running' ? (
+              <button onClick={ph.pause} className="text-[12px]" style={{ color: C.onDarkMuted }}>
+                ⏸ Pause
               </button>
             ) : (
-              <>
-                {ph.status === 'running' ? (
-                  <button onClick={ph.pause} className="text-[12px]" style={{ color: C.onDarkMuted }}>
-                    ⏸ Pause
-                  </button>
-                ) : (
-                  <button onClick={ph.resume} className="text-[12px]" style={{ color: C.progressBright }}>
-                    ▶ Resume
-                  </button>
-                )}
-                <button onClick={ph.end} className="text-[12px]" style={{ color: C.onDarkMuted }}>
-                  End session
-                </button>
-              </>
+              <button onClick={ph.resume} className="text-[12px]" style={{ color: C.progressBright }}>
+                ▶ Resume
+              </button>
             )}
+            <button
+              onClick={() => {
+                setRecap(makeRecap());
+                ph.end();
+              }}
+              className="text-[12px]"
+              style={{ color: C.onDarkMuted }}
+            >
+              End session
+            </button>
           </div>
         </div>
       </div>
