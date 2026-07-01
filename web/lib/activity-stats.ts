@@ -75,32 +75,91 @@ interface RangeWindow {
   prevTo: Date;
 }
 
-/** Resolve a range into [from, to) windows (UTC) + a same-length prior
- *  window for period-over-period comparison. */
-export function resolveRange(range: ActivityRange, now: Date = new Date()): RangeWindow {
+const WEEKDAY_INDEX: Record<string, number> = {
+  Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
+};
+
+/** Validate an IANA time-zone string (e.g. 'America/Chicago') from the
+ *  client. Empty or invalid input falls back to 'UTC' so a bad ?tz= param
+ *  can never throw a RangeError inside Intl. */
+export function normalizeTimeZone(timeZone: string | undefined | null): string {
+  if (!timeZone) return 'UTC';
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone });
+    return timeZone;
+  } catch {
+    return 'UTC';
+  }
+}
+
+/** The agent's wall-clock Y/M/D + weekday at `date`, read in `timeZone`.
+ *  For 'UTC' this matches the old getUTCFullYear/Month/Date/Day path. */
+function wallClockParts(date: Date, timeZone: string) {
+  const m: Record<string, string> = {};
+  for (const p of new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hourCycle: 'h23',
+    year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short',
+  }).formatToParts(date)) {
+    m[p.type] = p.value;
+  }
+  return { year: +m.year, month: +m.month, day: +m.day, weekday: m.weekday };
+}
+
+/** The UTC instant of local midnight for the given wall-clock date in
+ *  `timeZone`. Day/month overflow (e.g. day = 1 - 30) is normalized by
+ *  Date.UTC. For 'UTC' the offset is 0, so this returns Date.UTC(...) —
+ *  identical to the previous behavior. Boundaries are at midnight, clear
+ *  of the 2 AM US DST transition, so the same-instant offset is exact. */
+function zonedStartOfDay(year: number, month1to12: number, day: number, timeZone: string): Date {
+  const guess = Date.UTC(year, month1to12 - 1, day);
+  const m: Record<string, string> = {};
+  for (const p of new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hourCycle: 'h23',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  }).formatToParts(new Date(guess))) {
+    m[p.type] = p.value;
+  }
+  const asUtc = Date.UTC(+m.year, +m.month - 1, +m.day, +m.hour, +m.minute, +m.second);
+  const offsetMs = asUtc - guess; // localWallClock − UTC at this instant
+  return new Date(guess - offsetMs);
+}
+
+/** Resolve a range into [from, to) windows + a same-length prior window
+ *  for period-over-period comparison. Day/week/month/year boundaries are
+ *  anchored to `timeZone` (the agent's browser zone) so "Today" and "This
+ *  month" match the agent's own clock, not the server's UTC. Defaults to
+ *  'UTC' to preserve the original behavior when no zone is supplied. */
+export function resolveRange(
+  range: ActivityRange,
+  now: Date = new Date(),
+  timeZone: string = 'UTC',
+): RangeWindow {
   const to = new Date(now);
+  const { year, month, day, weekday } = wallClockParts(now, timeZone);
   let from: Date;
   switch (range) {
     case 'today': {
-      from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+      from = zonedStartOfDay(year, month, day, timeZone);
       break;
     }
     case 'week': {
-      const day = now.getUTCDay(); // 0=Sun..6=Sat
-      const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - day));
-      from = start;
+      const dow = WEEKDAY_INDEX[weekday] ?? 0; // 0=Sun..6=Sat
+      from = zonedStartOfDay(year, month, day - dow, timeZone);
       break;
     }
     case 'month': {
-      from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+      from = zonedStartOfDay(year, month, 1, timeZone);
       break;
     }
     case 'last30': {
-      from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 30));
+      from = zonedStartOfDay(year, month, day - 30, timeZone);
       break;
     }
     case 'ytd': {
-      from = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
+      from = zonedStartOfDay(year, 1, 1, timeZone);
       break;
     }
   }
@@ -347,9 +406,10 @@ export function policySaleDateSource(policy: {
 export async function getActivityStats(
   agentId: string,
   range: ActivityRange,
+  timeZone?: string,
 ): Promise<ActivityStats> {
   const db = getAdminFirestore();
-  const win = resolveRange(range);
+  const win = resolveRange(range, new Date(), normalizeTimeZone(timeZone));
   const fromMs = win.from.getTime();
   const toMs = win.to.getTime();
   const prevFromMs = win.prevFrom.getTime();

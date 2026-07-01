@@ -123,6 +123,14 @@ function fmtDate(iso: string): string {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' });
 }
 
+// Header range boundaries (range.from / range.to) are real instants
+// anchored to the agent's time zone server-side — so format them in the
+// browser's local zone, NOT UTC, or "to" (which is now) would show as
+// tomorrow's date after ~7 PM Central.
+function fmtRangeDate(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
 function DeltaChip({ pct }: { pct: number | null }) {
   if (pct === null || !Number.isFinite(pct)) {
     return <span className="inline-block px-2 py-0.5 text-[10px] font-bold rounded bg-gray-100 text-gray-500">— no prior</span>;
@@ -517,9 +525,14 @@ export default function ActivityPage() {
     setError(null);
     try {
       const token = await user.getIdToken();
-      const res = await fetch(`/api/agent/activity?range=${range}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      // Send the browser's IANA time zone so "Today" / "This month" anchor
+      // to the agent's own clock, not the server's UTC (e.g. after 7 PM
+      // Central, UTC has already rolled to the next day/month).
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+      const res = await fetch(
+        `/api/agent/activity?range=${range}&tz=${encodeURIComponent(tz)}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         setError(data?.error || `Failed to load (${res.status})`);
@@ -595,7 +608,7 @@ export default function ActivityPage() {
         <div>
           <h1 className="text-2xl font-bold text-[#000000]">Activity</h1>
           <p className="text-sm text-[#707070] mt-1">
-            {stats ? `${fmtDate(stats.range.from)} — ${fmtDate(stats.range.to)} · ${stats.range.label}` : 'Loading…'}
+            {stats ? `${fmtRangeDate(stats.range.from)} — ${fmtRangeDate(stats.range.to)} · ${stats.range.label}` : 'Loading…'}
           </p>
         </div>
         {/* Time range chips */}
