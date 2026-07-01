@@ -11,6 +11,7 @@ interface AgentRow {
   clientCount: number;
   subscriptionStatus: string;
   isAgencyOwner?: boolean;
+  agencyOwnerId?: string | null;
 }
 
 export default function ManageAgentsPage() {
@@ -25,7 +26,7 @@ export default function ManageAgentsPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
-  const [actionResult, setActionResult] = useState<{ agentId: string; type: 'export' | 'delete' | 'founding' | 'agency'; message: string } | null>(null);
+  const [actionResult, setActionResult] = useState<{ agentId: string; type: 'export' | 'delete' | 'founding' | 'agency' | 'upline'; message: string } | null>(null);
 
   const fetchAgents = useCallback(async () => {
     if (!user) return;
@@ -51,6 +52,7 @@ export default function ManageAgentsPage() {
           clientCount: 0,
           subscriptionStatus: '—',
           isAgencyOwner: false,
+          agencyOwnerId: null,
         }));
 
       const listRes = await fetch('/api/admin/list-agents', {
@@ -205,6 +207,46 @@ export default function ManageAgentsPage() {
     }
   };
 
+  // Attach (or detach) an existing agent to a team owner by writing their
+  // dedicated `agencyOwnerId`. ownerId === '' clears the assignment. This is
+  // separate from referral credit (referredByAgent) on purpose.
+  const handleAssignUpline = async (agentId: string, ownerId: string) => {
+    if (!user || !agentId) return;
+    setActionLoading(agentId);
+    setActionResult(null);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/admin/set-agency-upline', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ uid: agentId, agencyOwnerId: ownerId || null }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Update failed');
+      setAgents((prev) => prev.map((a) => (a.id === agentId ? { ...a, agencyOwnerId: ownerId || null } : a)));
+      const ownerName = owners.find((o) => o.id === ownerId)?.name;
+      setActionResult({
+        agentId,
+        type: 'upline',
+        message: ownerId ? `Assigned to ${ownerName || 'owner'}'s team.` : 'Removed from team.',
+      });
+    } catch (e) {
+      setActionResult({
+        agentId,
+        type: 'upline',
+        message: e instanceof Error ? e.message : 'Update failed',
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Eligible team owners = agents flagged isAgencyOwner.
+  const owners = agents.filter((a) => a.id && a.isAgencyOwner);
+
   const filtered = agents.filter((a) => {
     const q = search.toLowerCase();
     return a.name.toLowerCase().includes(q) || a.email.toLowerCase().includes(q);
@@ -258,6 +300,7 @@ export default function ManageAgentsPage() {
                     <th className="px-4 py-3 text-xs font-semibold text-[#707070] uppercase tracking-wider">Agent</th>
                     <th className="px-4 py-3 text-xs font-semibold text-[#707070] uppercase tracking-wider">Clients</th>
                     <th className="px-4 py-3 text-xs font-semibold text-[#707070] uppercase tracking-wider">Subscription</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-[#707070] uppercase tracking-wider">Agency team</th>
                     <th className="px-4 py-3 text-xs font-semibold text-[#707070] uppercase tracking-wider text-right">Actions</th>
                   </tr>
                 </thead>
@@ -279,6 +322,36 @@ export default function ManageAgentsPage() {
                         }`}>
                           {agent.subscriptionStatus || '—'}
                         </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {agent.id ? (
+                          <select
+                            value={agent.agencyOwnerId ?? ''}
+                            onChange={(e) => handleAssignUpline(agent.id, e.target.value)}
+                            disabled={actionLoading === (agent.id || agent.email)}
+                            title="Assign this agent to a team owner's downline"
+                            className="max-w-[160px] px-2 py-1.5 border border-[#d0d0d0] rounded-[5px] text-xs text-[#0D4D4D] bg-white disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#44bbaa]"
+                          >
+                            <option value="">— No team —</option>
+                            {owners
+                              .filter((o) => o.id !== agent.id)
+                              .map((o) => (
+                                <option key={o.id} value={o.id}>
+                                  {o.name}
+                                </option>
+                              ))}
+                            {/* The agent's current owner may not be flagged as
+                                an owner anymore — keep it visible so state is honest. */}
+                            {agent.agencyOwnerId &&
+                              !owners.some((o) => o.id === agent.agencyOwnerId) && (
+                                <option value={agent.agencyOwnerId}>
+                                  {agents.find((a) => a.id === agent.agencyOwnerId)?.name || 'Current owner'}
+                                </option>
+                              )}
+                          </select>
+                        ) : (
+                          <span className="text-xs text-[#a0a0a0]">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">

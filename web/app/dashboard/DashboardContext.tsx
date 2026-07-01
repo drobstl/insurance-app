@@ -462,6 +462,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           referralMessage: data.referralMessage,
           isFoundingMember: data.isFoundingMember,
           isAgencyOwner: data.isAgencyOwner === true,
+          inviteCode: typeof data.inviteCode === 'string' ? data.inviteCode : undefined,
           schedulingUrl: data.schedulingUrl,
           bookingMode: data.bookingMode === 'ai' ? 'ai' : 'link',
           bookingHours:

@@ -152,7 +152,10 @@ export async function POST(request: NextRequest) {
       createdAt: FieldValue.serverTimestamp(),
     };
     if (stripeCustomerId) profile.stripeCustomerId = stripeCustomerId;
-    if (referrerId) profile.referredByAgent = referrerId;
+    if (referrerId) {
+      profile.referredByAgent = referrerId; // referral/affiliate credit
+      profile.agencyOwnerId = referrerId; // team membership (link signup → owner's downline)
+    }
     if (fpTid) profile.affiliateTid = fpTid;
 
     await db.collection('agents').doc(uid).set(profile, { merge: true });

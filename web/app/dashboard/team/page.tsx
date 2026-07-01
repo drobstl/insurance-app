@@ -165,16 +165,21 @@ function MemberCard({ row, windowDays, isOwner }: { row: MemberRow; windowDays: 
 }
 
 export default function TeamPage() {
-  const { user, agentProfile } = useDashboard();
+  const { user, agentProfile, refreshProfile } = useDashboard();
   const router = useRouter();
   const [range, setRange] = useState<ActivityRange>('month');
   const [coachingDays, setCoachingDays] = useState<14 | 28>(28);
   const [data, setData] = useState<TeamOverview | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error' | 'forbidden'>('loading');
   const [copied, setCopied] = useState(false);
+  // Invite code is lazy-generated: agents/{uid}.inviteCode may not exist yet.
+  // If the profile has none, hit GET /api/agent-invite, which generates +
+  // persists one, so the "Your agency invite link" box always renders.
+  const [generatedCode, setGeneratedCode] = useState<string | null>(null);
 
   const profileLoaded = !!user && Object.keys(agentProfile).length > 0;
   const isOwner = agentProfile.isAgencyOwner === true;
+  const inviteCode = agentProfile.inviteCode ?? generatedCode;
 
   const [reloadNonce, setReloadNonce] = useState(0);
 
@@ -215,9 +220,37 @@ export default function TeamPage() {
     };
   }, [profileLoaded, isOwner, user, range, coachingDays, reloadNonce]);
 
+  // Ensure an invite code exists. GET /api/agent-invite lazily generates and
+  // stores one (agents/{uid}.inviteCode + agentInviteCodes/{code}); we mirror
+  // it locally for an instant render and refresh the profile so the rest of
+  // the app sees it too. Non-fatal — the link box just stays hidden on failure.
+  useEffect(() => {
+    if (!profileLoaded || !isOwner || !user) return;
+    if (agentProfile.inviteCode || generatedCode) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await user.getIdToken();
+        const res = await fetch('/api/agent-invite', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (cancelled || !res.ok) return;
+        const json = (await res.json()) as { inviteCode?: string };
+        if (cancelled || typeof json.inviteCode !== 'string') return;
+        setGeneratedCode(json.inviteCode);
+        void refreshProfile();
+      } catch {
+        /* non-fatal — link box stays hidden */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [profileLoaded, isOwner, user, agentProfile.inviteCode, generatedCode, refreshProfile]);
+
   const inviteLink =
-    typeof window !== 'undefined' && agentProfile.inviteCode
-      ? `${window.location.origin}/signup?ref=${agentProfile.inviteCode}`
+    typeof window !== 'undefined' && inviteCode
+      ? `${window.location.origin}/signup?ref=${inviteCode}`
       : null;
 
   const copyInvite = async () => {
@@ -350,7 +383,8 @@ export default function TeamPage() {
           {data.members.length === 0 ? (
             <div className="rounded-[8px] border border-dashed border-[#d0d0d0] bg-white p-6 text-center">
               <p className="text-sm text-[#6B7280]">
-                No agents have joined with your invite link yet. Share the link above to start building your team.
+                No agents on your team yet. Share your invite link above, or ask support to attach
+                an existing agent to your team.
               </p>
             </div>
           ) : (
