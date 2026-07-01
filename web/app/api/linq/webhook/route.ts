@@ -19,7 +19,7 @@ import {
   type ReferralContext,
   type ReferralBookingCapability,
 } from '../../../../lib/referral-ai';
-import { getAvailableSlots } from '../../../../lib/agent-availability';
+import { getAvailableSlots, findSlots, resolveTime } from '../../../../lib/agent-availability';
 import { bookReferralAppointment } from '../../../../lib/referral-booking';
 import { GOOGLE_CALENDAR_CALLBACK_PATH } from '../../../../lib/oauth-redirect';
 import {
@@ -846,13 +846,26 @@ async function handleReferralReply(
       const origin = (process.env.NEXT_PUBLIC_APP_URL || 'https://agentforlife.app').replace(/\/+$/, '');
       const callbackUrl = `${origin}${GOOGLE_CALENDAR_CALLBACK_PATH}`;
       const tz = (agentData.timezone as string) || (agentData.bookingTimeZone as string) || 'America/Chicago';
-      const slots = await getAvailableSlots({ agentId, callbackUrl, timeZone: tz, count: 3 });
-      if (slots.length > 0) {
+      const initialSlots = await getAvailableSlots({ agentId, callbackUrl, timeZone: tz, count: 3 });
+      if (initialSlots.length > 0) {
         booking = {
-          slots: slots.map((s) => ({ id: s.id, label: s.label, startIso: s.startIso })),
-          execute: async (slotId) => {
-            const slot = slots.find((s) => s.id === slotId);
-            if (!slot) return { ok: false, whenLabel: '' };
+          initialSlots: initialSlots.map((s) => ({ startIso: s.startIso, label: s.label })),
+          timezoneLabel: tz,
+          todayIso: new Date().toISOString(),
+          findTimes: async (fromIso) => {
+            const opts = await findSlots({ agentId, callbackUrl, timeZone: tz, fromIso, count: 4 });
+            return opts.map((s) => ({ startIso: s.startIso, label: s.label }));
+          },
+          bookTime: async (iso) => {
+            const resolved = await resolveTime({ agentId, callbackUrl, timeZone: tz, iso });
+            if (!resolved.ok || !resolved.startIso || !resolved.endIso) {
+              return {
+                ok: false,
+                whenLabel: '',
+                reason: resolved.reason,
+                alternatives: resolved.alternatives.map((s) => ({ startIso: s.startIso, label: s.label })),
+              };
+            }
             const res = await bookReferralAppointment({
               db,
               agentId,
@@ -861,14 +874,14 @@ async function handleReferralReply(
               referralName: (referralData.referralName as string) || 'Friend',
               referralPhone: (referralData.referralPhone as string) || senderHandle || null,
               referralEmail: (referralData.referralEmail as string) || null,
-              startIso: slot.startIso,
-              endIso: slot.endIso,
+              startIso: resolved.startIso,
+              endIso: resolved.endIso,
               durationMinutes: 30,
               timeZone: tz,
               callbackUrl,
               origin,
             });
-            return { ok: res.ok, whenLabel: slot.label };
+            return { ok: res.ok, whenLabel: resolved.label ?? '', alternatives: [] };
           },
         };
       }
