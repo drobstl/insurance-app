@@ -70,6 +70,11 @@ interface CalAppt {
   kind?: 'appointment' | 'callback';
   meetingUrl: string | null;
   googleEventId: string | null;
+  /** AI direct-booked referral appointments carry source='referral' +
+   *  referralId and have NO leadId — so they open the Referrals page, not a
+   *  (nonexistent) lead. */
+  source?: string | null;
+  referralId?: string | null;
 }
 
 interface BusyBlock {
@@ -272,6 +277,8 @@ function useWeekAppointments(user: User | null, weekStart: Date): CalAppt[] {
             kind: v.kind === 'callback' ? 'callback' : 'appointment',
             meetingUrl: typeof v.meetingUrl === 'string' ? v.meetingUrl : null,
             googleEventId: typeof v.googleEventId === 'string' ? v.googleEventId : null,
+            source: typeof v.source === 'string' ? v.source : null,
+            referralId: typeof v.referralId === 'string' ? v.referralId : null,
           });
         });
         setAppts(rows);
@@ -679,7 +686,7 @@ export default function LeadsCalendar({ onGoToQueue }: { onGoToQueue?: () => voi
       setSelected(null);
       setReminderFor(appt);
       setReminderExtra({});
-      if (!user) return;
+      if (!user || !appt.leadId) return; // referral appts have no lead doc to read
       // Best-effort lead read for attachment dedup + login code + email,
       // mirroring UpcomingAppointmentsCard. Drawer falls back gracefully.
       try {
@@ -958,7 +965,7 @@ export default function LeadsCalendar({ onGoToQueue }: { onGoToQueue?: () => voi
           kind={kindById.get(selected.id)}
           fifReset={fifResetByLead.get(selected.leadId)}
           onClose={() => setSelected(null)}
-          onOpenLead={() => router.push(`/dashboard/leads/${selected.leadId}`)}
+          onOpenLead={() => router.push(selected.source === 'referral' ? '/dashboard/referrals' : `/dashboard/leads/${selected.leadId}`)}
           onRemind={() => openReminder(selected)}
         />
       )}
@@ -1728,6 +1735,9 @@ function ApptPopover({
         {/* First sit vs follow-up — and, orthogonally, a booked FIF reset
             (which lives on the SME's external calendar, never its own block). */}
         <div className="mb-3 flex flex-wrap items-center gap-1.5">
+          {appt.source === 'referral' && (
+            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full border text-[#005851] bg-[#daf3f0] border-[#45bcaa]/40">Referral</span>
+          )}
           {kind &&
             (kind.kind === 'follow_up' ? (
               <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${STATUS_META[kind.priorStatus].block}`}>
@@ -1764,7 +1774,7 @@ function ApptPopover({
               Join
             </a>
           )}
-          {!isCb && (
+          {!isCb && appt.source !== 'referral' && (
             <button
               onClick={onRemind}
               className="col-span-1 grid place-items-center py-2.5 text-sm font-semibold text-[#0D4D4D] bg-white hover:bg-[#f8f8f8] rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors"
@@ -1776,7 +1786,7 @@ function ApptPopover({
             onClick={onOpenLead}
             className="col-span-1 grid place-items-center py-2.5 text-sm font-semibold text-[#0D4D4D] bg-white hover:bg-[#f8f8f8] rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors"
           >
-            Open lead
+            {appt.source === 'referral' ? 'Open referral' : 'Open lead'}
           </button>
         </div>
 
