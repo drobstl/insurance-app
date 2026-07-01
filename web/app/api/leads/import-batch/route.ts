@@ -6,6 +6,7 @@ import { getAdminAuth, getAdminFirestore } from '../../../../lib/firebase-admin'
 import { resolveLeadCodeOrDuplicate } from '../../../../lib/lead-dedup';
 import { deriveLeadCode } from '../../../../lib/lead-code-derive';
 import { loadLeadPhoneIndex } from '../../../../lib/lead-phone-index';
+import { ageFromDob } from '../../../../lib/household';
 
 /**
  * POST /api/leads/import-batch
@@ -48,7 +49,87 @@ interface LeadImportRow {
   phone?: string;
   email?: string;
   dateOfBirth?: string;
+  ageYears?: number | null;
   address?: { street?: string; city?: string; state?: string; zip?: string };
+  gender?: 'M' | 'F' | '';
+  heightText?: string;
+  weightLbs?: number | null;
+  smokerStatus?: 'Y' | 'N' | '';
+  coborrowerStatus?: 'Y' | 'N' | '';
+  mortgageBalance?: number | null;
+  mortgageLender?: string;
+  spouseName?: string;
+  spouseAgeYears?: number | null;
+  beneficiaryName?: string;
+}
+
+/**
+ * Compose the rich, PDF-parity fields onto a lead update/create payload from
+ * an import row, writing each only when present. `mode: 'create'` sets every
+ * value we have; `mode: 'gapfill'` fills only blanks (never clobbers an agent-
+ * curated value on `cur`). Field names + shapes mirror the PDF upload path
+ * (`/api/leads/upload`) so a CSV lead and a scanned-form lead look identical.
+ * Returns true if it wrote anything (gap-fill uses this to report a change).
+ */
+function applyRichFields(
+  target: Record<string, unknown>,
+  row: LeadImportRow,
+  opts: { mode: 'create' | 'gapfill'; cur?: Record<string, unknown> },
+): boolean {
+  const cur = opts.cur || {};
+  const blank = (k: string) => cur[k] === undefined || cur[k] === null || cur[k] === '';
+  let wrote = false;
+  const set = (k: string, v: unknown) => { target[k] = v; wrote = true; };
+
+  // Age: an explicit age column wins; otherwise derive from DOB so age-based
+  // sorts, the 80+ lead-credit flag, and quoting all work on CSV leads too.
+  const dob = (row.dateOfBirth || '').trim();
+  const age = typeof row.ageYears === 'number' && row.ageYears > 0
+    ? row.ageYears
+    : ageFromDob(dob || undefined) ?? null;
+  if (age !== null && (opts.mode === 'create' || blank('ageYears'))) set('ageYears', age);
+
+  if (row.gender && (opts.mode === 'create' || blank('gender'))) set('gender', row.gender);
+  const height = (row.heightText || '').trim();
+  if (height && (opts.mode === 'create' || blank('heightText'))) set('heightText', height);
+  if (typeof row.weightLbs === 'number' && row.weightLbs > 0 && (opts.mode === 'create' || blank('weightLbs'))) {
+    set('weightLbs', row.weightLbs);
+  }
+  if ((row.smokerStatus === 'Y' || row.smokerStatus === 'N') && (opts.mode === 'create' || blank('smokerStatus'))) {
+    set('smokerStatus', row.smokerStatus);
+  }
+  if ((row.coborrowerStatus === 'Y' || row.coborrowerStatus === 'N') && (opts.mode === 'create' || blank('coborrowerStatus'))) {
+    set('coborrowerStatus', row.coborrowerStatus);
+  }
+
+  // Mortgage balance + lender share one object, matching the PDF path's
+  // `mortgageDetails`. Merge onto any existing object so gap-fill can add a
+  // lender to a balance-only record without dropping the balance.
+  const balance = typeof row.mortgageBalance === 'number' && row.mortgageBalance > 0 ? row.mortgageBalance : null;
+  const lender = (row.mortgageLender || '').trim();
+  if (balance !== null || lender) {
+    const curMort = (cur.mortgageDetails && typeof cur.mortgageDetails === 'object'
+      ? cur.mortgageDetails
+      : {}) as Record<string, unknown>;
+    const nextMort: Record<string, unknown> = opts.mode === 'create' ? {} : { ...curMort };
+    if (balance !== null && (opts.mode === 'create' || curMort.balance === undefined || curMort.balance === null)) {
+      nextMort.balance = balance;
+    }
+    if (lender && (opts.mode === 'create' || !curMort.lender)) {
+      nextMort.lender = lender;
+    }
+    if (Object.keys(nextMort).length > 0) set('mortgageDetails', nextMort);
+  }
+
+  const spouseName = (row.spouseName || '').trim();
+  if (spouseName && (opts.mode === 'create' || blank('spouseName'))) set('spouseName', spouseName);
+  if (typeof row.spouseAgeYears === 'number' && row.spouseAgeYears > 0 && (opts.mode === 'create' || blank('spouseAgeYears'))) {
+    set('spouseAgeYears', row.spouseAgeYears);
+  }
+  const beneficiary = (row.beneficiaryName || '').trim();
+  if (beneficiary && (opts.mode === 'create' || blank('beneficiaryName'))) set('beneficiaryName', beneficiary);
+
+  return wrote;
 }
 
 interface CreatedLead {
@@ -165,6 +246,9 @@ export async function POST(req: NextRequest) {
         if (v && !curAddr[k]) { nextAddr[k] = v; addrChanged = true; }
       }
       if (addrChanged) update.address = nextAddr;
+      // Gap-fill the rich PDF-parity fields too (mortgage, tobacco, spouse, …)
+      // so a re-import that adds columns backfills an existing lead.
+      applyRichFields(update, row, { mode: 'gapfill', cur });
       if (Object.keys(update).length === 0) return false;
       await ref.update(update);
       return true;
@@ -272,6 +356,10 @@ export async function POST(req: NextRequest) {
         if ((addr.state || '').trim()) address.state = (addr.state as string).trim();
         if ((addr.zip || '').trim()) address.zip = (addr.zip as string).trim();
         if (Object.keys(address).length > 0) leadDoc.address = address;
+
+        // Rich, PDF-parity fields (age, mortgage, tobacco, co-borrower,
+        // spouse, beneficiary, gender/height/weight) when the list carried them.
+        applyRichFields(leadDoc, row, { mode: 'create' });
 
         await leadRef.set(leadDoc);
         created.push({
