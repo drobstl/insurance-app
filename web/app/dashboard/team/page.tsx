@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useDashboard } from '../DashboardContext';
+import ScoringInfinity from '../../../components/ScoringInfinity';
 
 /**
  * /dashboard/team — the agency owner's "My Team" dashboard.
@@ -410,10 +411,7 @@ export default function TeamPage() {
   if (!profileLoaded) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
-        <svg className="h-7 w-7 animate-spin text-[#44bbaa]" fill="none" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-        </svg>
+        <ScoringInfinity className="w-24 h-12" />
       </div>
     );
   }
@@ -486,10 +484,7 @@ export default function TeamPage() {
 
       {status === 'loading' && (
         <div className="flex min-h-[30vh] items-center justify-center">
-          <svg className="h-7 w-7 animate-spin text-[#44bbaa]" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-          </svg>
+          <ScoringInfinity className="w-24 h-12" />
         </div>
       )}
 

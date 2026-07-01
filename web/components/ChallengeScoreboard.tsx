@@ -232,7 +232,7 @@ export default function ChallengeScoreboard({ refreshSignal }: { refreshSignal?:
         inner={{ pct: weeklyPct, color: C.weeklyDark }}
         trackColor={C.ringTrackDark}
         centerTop={String(dailyCount)}
-        centerBottom={daily.won ? 'beat it' : `of ${daily.target}`}
+        centerBottom="dials"
         centerTopColor={daily.won ? C.progressBright : C.onDark}
         centerBottomColor={C.onDarkMuted}
         animate

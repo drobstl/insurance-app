@@ -54,7 +54,7 @@ export default function TodaysChallengeCard() {
         outer={{ pct: dailyPct, color: C.progress }}
         trackColor={C.ringTrackLight}
         centerTop={String(count)}
-        centerBottom={daily.won ? 'beat it' : `of ${daily.target}`}
+        centerBottom="dials"
         centerTopColor={C.numberDark}
         centerBottomColor={C.mutedTeal}
         animate
