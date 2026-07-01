@@ -153,6 +153,11 @@ export interface AgentProfile {
    *  dashboard. Downline = agents whose `referredByAgent` is this uid. */
   isAgencyOwner?: boolean;
   schedulingUrl?: string;
+  /** How the AI books referrals: 'link' (send scheduling link, default) or
+   *  'ai' (offer times + book on the connected Google Calendar). */
+  bookingMode?: 'link' | 'ai';
+  /** Working window the AI books within (Mon–Fri), 24h local hours. */
+  bookingHours?: { startHour: number; endHour: number };
   autoHolidayCards?: boolean;
   aiAssistantEnabled?: boolean;
   anniversaryMessageStyle?: 'check_in' | 'lower_price' | 'custom';
@@ -458,6 +463,11 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           isFoundingMember: data.isFoundingMember,
           isAgencyOwner: data.isAgencyOwner === true,
           schedulingUrl: data.schedulingUrl,
+          bookingMode: data.bookingMode === 'ai' ? 'ai' : 'link',
+          bookingHours:
+            data.bookingHours && typeof data.bookingHours.startHour === 'number' && typeof data.bookingHours.endHour === 'number'
+              ? { startHour: data.bookingHours.startHour, endHour: data.bookingHours.endHour }
+              : undefined,
           autoHolidayCards: data.autoHolidayCards,
           aiAssistantEnabled: data.aiAssistantEnabled,
           anniversaryMessageStyle: data.anniversaryMessageStyle,

@@ -242,6 +242,10 @@ interface AppointmentsLeadsTabProps {
   setSaveMessage: (m: SaveMessage) => void;
   /** Read-only — drives the "requires Google Calendar" hint on auto-Meet. */
   googleCalendarStatus: GoogleCalendarStatusResponse['data'] | null;
+  /** Connect-calendar handler + pending state, so the "Let the AI book it"
+      option can offer a one-click connect right on the card. */
+  googleCalendarConnecting?: boolean;
+  onConnectCalendar?: () => void;
   /** Which half of the old combined tab to render: appointment defaults,
       or the Pro-gated dialer + lead-home surfaces. */
   view: 'appointments' | 'leads';
@@ -256,6 +260,8 @@ export default function AppointmentsLeadsTab({
   setAgentProfile,
   setSaveMessage,
   googleCalendarStatus,
+  googleCalendarConnecting,
+  onConnectCalendar,
   view,
   clean,
 }: AppointmentsLeadsTabProps) {
@@ -429,30 +435,126 @@ export default function AppointmentsLeadsTab({
     <div className="space-y-5">
       {view === 'appointments' && (
       <>
-      {/* Scheduling link — moved here from the You tab; it's how clients book you. */}
+      {/* How you book — pick the scheduling link (classic) or let the AI book
+          directly on your Google Calendar. The AI option gates on a connected
+          calendar so it never offers times it hasn't checked. */}
       <div className="bg-white rounded-[5px] border border-gray-200 p-5">
-        <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Scheduling link</h3>
-        <div>
-          <input
-            type="url"
-            value={agentProfile.schedulingUrl || ''}
-            onChange={(e) => updateField('schedulingUrl', e.target.value)}
-            placeholder="https://calendly.com/your-name"
-            className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]"
-          />
-          {agentProfile.schedulingUrl && !agentProfile.schedulingUrl.startsWith('https://') && (
-            <p className="text-xs text-red-500 mt-1.5">URL must start with https://</p>
-          )}
-          {schedulingPlatform && (
-            <p className="text-xs text-[#45bcaa] mt-1.5 flex items-center gap-1">
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              Detected: {schedulingPlatform}
-            </p>
-          )}
-          <p className="text-xs text-[#707070] mt-1.5">Supports Calendly, Cal.com, Acuity, and Google Calendar links.</p>
-        </div>
+        <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-1">How you book</h3>
+        <p className="text-xs text-[#707070] mb-4">What happens when a lead or referral is ready to lock in a time.</p>
+        {(() => {
+          const mode = agentProfile.bookingMode === 'ai' ? 'ai' : 'link';
+          const connected = !!googleCalendarStatus;
+          const startHour = agentProfile.bookingHours?.startHour ?? 9;
+          const endHour = agentProfile.bookingHours?.endHour ?? 17;
+          const setHours = (s: number, e: number) => updateField('bookingHours', { startHour: s, endHour: e });
+          const fmtHour = (h: number) => `${h % 12 === 0 ? 12 : h % 12}:00 ${h < 12 ? 'AM' : 'PM'}`;
+          const RadioDot = ({ on }: { on: boolean }) => (
+            <span className={`mt-0.5 w-[18px] h-[18px] rounded-full border-2 flex items-center justify-center shrink-0 ${on ? 'border-[#005851]' : 'border-gray-300'}`}>
+              {on && <span className="w-2 h-2 rounded-full bg-[#005851]" />}
+            </span>
+          );
+          const cardCls = (on: boolean) =>
+            `rounded-[8px] border p-3.5 cursor-pointer transition-colors ${on ? 'border-[#005851] bg-[#f2fbf9] ring-1 ring-[#005851]' : 'border-gray-200 hover:border-gray-300'}`;
+          return (
+            <>
+              {/* Two matched options, side by side. */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div role="button" onClick={() => updateField('bookingMode', 'link')} className={cardCls(mode === 'link')}>
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-sm font-semibold text-[#111827]">Send my scheduling link</span>
+                    <RadioDot on={mode === 'link'} />
+                  </div>
+                  <p className="text-xs text-[#707070] mt-1">Works with <span className="font-medium text-[#111827]">any calendar</span> — Calendly, Cal.com, Acuity, or a Google link.</p>
+                </div>
+                <div role="button" onClick={() => updateField('bookingMode', 'ai')} className={cardCls(mode === 'ai')}>
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-sm font-semibold text-[#111827] flex items-center gap-1.5">
+                      Let the AI book it
+                      <span className="text-[9px] font-bold uppercase tracking-wide text-[#005851] bg-[#daf3f0] px-1.5 py-0.5 rounded">New</span>
+                    </span>
+                    <RadioDot on={mode === 'ai'} />
+                  </div>
+                  <p className="text-xs text-[#707070] mt-1">Needs <span className="font-medium text-[#111827]">Google Calendar</span>. Books straight onto your calendar — no link.</p>
+                </div>
+              </div>
+
+              {/* Connected setup panel — its pointer tucks up under the selected card. */}
+              <div className="relative mt-3 rounded-[8px] border border-[#005851] bg-[#f2fbf9] p-4">
+                <div
+                  className="absolute w-3 h-3 bg-[#f2fbf9] border-l border-t border-[#005851]"
+                  style={{ top: -6.5, left: mode === 'ai' ? '75%' : '25%', transform: 'translateX(-50%) rotate(45deg)' }}
+                />
+                {mode === 'link' ? (
+                  <div>
+                    <input
+                      type="url"
+                      value={agentProfile.schedulingUrl || ''}
+                      onChange={(e) => updateField('schedulingUrl', e.target.value)}
+                      placeholder="https://calendly.com/your-name"
+                      className="w-full px-3 py-2 rounded-[5px] border border-[#d7e3e0] text-sm bg-white focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]"
+                    />
+                    {agentProfile.schedulingUrl && !agentProfile.schedulingUrl.startsWith('https://') && (
+                      <p className="text-xs text-red-500 mt-1.5">URL must start with https://</p>
+                    )}
+                    {schedulingPlatform && (
+                      <p className="text-xs text-[#45bcaa] mt-1.5 flex items-center gap-1">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        Detected: {schedulingPlatform}
+                      </p>
+                    )}
+                    <p className="text-xs text-[#707070] mt-1.5">Supports Calendly, Cal.com, Acuity, and Google Calendar links.</p>
+                  </div>
+                ) : connected ? (
+                  <div className="space-y-4">
+                    <div className="rounded-[6px] px-3 py-2 text-xs bg-white text-[#005851] border border-[#45bcaa]/30">
+                      ✓ Connected — the AI reads your free/busy and books here{googleCalendarStatus?.googleEmail ? ` (${googleCalendarStatus.googleEmail})` : ''}.
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-[#111827]">Your booking hours <span className="font-normal text-[#707070]">(Mon–Fri)</span></label>
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <select value={startHour} onChange={(e) => setHours(Number(e.target.value), endHour)} className="px-2 py-1.5 rounded-[5px] border border-[#d7e3e0] text-sm bg-white">
+                          {[6, 7, 8, 9, 10, 11].map((h) => <option key={h} value={h}>{fmtHour(h)}</option>)}
+                        </select>
+                        <span className="text-xs text-[#707070]">to</span>
+                        <select value={endHour} onChange={(e) => setHours(startHour, Number(e.target.value))} className="px-2 py-1.5 rounded-[5px] border border-[#d7e3e0] text-sm bg-white">
+                          {[15, 16, 17, 18, 19, 20].map((h) => <option key={h} value={h}>{fmtHour(h)}</option>)}
+                        </select>
+                      </div>
+                      <p className="text-xs text-[#707070] mt-1.5">The AI only offers times inside these hours, minus anything already on your calendar.</p>
+                    </div>
+                    <div className="rounded-[8px] border border-[#d7e3e0] bg-white p-3.5">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af] mb-2">What your referral sees</p>
+                      <div className="space-y-1.5">
+                        <div><span className="text-[13px] text-black bg-[#e9e9eb] rounded-2xl rounded-bl-md px-3 py-1.5 inline-block max-w-[80%]">I&rsquo;ve got Thursday at 2:00 or Friday at 10:00 — which works?</span></div>
+                        <div className="text-right"><span className="text-[13px] text-white bg-[#0a84ff] rounded-2xl rounded-br-md px-3 py-1.5 inline-block">Thursday works</span></div>
+                        <div><span className="text-[13px] text-black bg-[#e9e9eb] rounded-2xl rounded-bl-md px-3 py-1.5 inline-block max-w-[80%]">Done — you&rsquo;re booked for Thursday at 2:00 📅</span></div>
+                      </div>
+                      <p className="text-xs text-[#707070] mt-2">No link to click — the AI books it and it lands on your calendar.</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => onConnectCalendar?.()}
+                      disabled={googleCalendarConnecting}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[5px] bg-[#005851] text-white text-xs font-semibold hover:bg-[#004440] transition-colors disabled:opacity-50"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <rect x="4" y="5" width="16" height="15" rx="2" strokeWidth="2" />
+                        <path strokeLinecap="round" strokeWidth="2" d="M4 9h16M8 3v4M16 3v4" />
+                      </svg>
+                      {googleCalendarConnecting ? 'Connecting…' : 'Connect Google Calendar'}
+                    </button>
+                    <p className="text-[11px] text-[#005851] mt-1.5">Takes about 10 seconds — then AI booking turns on for you.</p>
+                  </div>
+                )}
+              </div>
+            </>
+          );
+        })()}
       </div>
 
       {/* Appointment defaults — phone vs video, default meeting link, auto-Meet */}

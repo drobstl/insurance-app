@@ -225,6 +225,8 @@ export default function SettingsPage() {
     name: agentProfile.name || '',
     phoneNumber: agentProfile.phoneNumber || '',
     schedulingUrl: agentProfile.schedulingUrl || '',
+    bookingMode: agentProfile.bookingMode || 'link',
+    bookingHours: agentProfile.bookingHours || null,
     agencyName: agentProfile.agencyName || '',
     npn: agentProfile.npn || '',
     agencyLogoBase64: agentProfile.agencyLogoBase64 || null,
@@ -546,6 +548,8 @@ export default function SettingsPage() {
         name: agentProfile.name || '',
         phoneNumber: agentProfile.phoneNumber || '',
         schedulingUrl: agentProfile.schedulingUrl || '',
+        bookingMode: agentProfile.bookingMode || 'link',
+        ...(agentProfile.bookingHours ? { bookingHours: agentProfile.bookingHours } : {}),
         agencyName: agentProfile.agencyName || '',
         npn: (agentProfile.npn || '').trim(),
         agencyLogoBase64: agentProfile.agencyLogoBase64 || null,
@@ -793,6 +797,8 @@ export default function SettingsPage() {
             setAgentProfile={setAgentProfile}
             setSaveMessage={setSaveMessage}
             googleCalendarStatus={googleCalendarStatus}
+            googleCalendarConnecting={googleCalendarConnecting}
+            onConnectCalendar={handleGoogleCalendarConnect}
           />
         )}
         {tab === 'leads' && (

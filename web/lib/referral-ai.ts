@@ -274,16 +274,37 @@ ${languageInstruction(ctx.preferredLanguage ?? 'en')}`,
  * Feature-flagged at the call site; absent → the AI behaves exactly as before
  * (offers the scheduling link).
  */
-export interface ReferralBookingCapability {
-  slots: Array<{ id: string; label: string; startIso: string }>;
-  /** Books the chosen slot; returns a human label for the confirmation text. */
-  execute: (slotId: string) => Promise<{ ok: boolean; whenLabel: string }>;
+export interface TimeOption {
+  startIso: string;
+  label: string;
 }
 
 /**
- * Booking-enabled response path: gives the model a `book_appointment` tool
- * constrained to the provided slot ids, executes the pick, then returns the
- * confirmation text. Kept separate so the standard path stays untouched.
+ * Optional direct-booking capability handed to the referral AI. When present,
+ * the model can offer real open times, find more/near a requested day, and book
+ * a specific one. Feature-flagged at the call site; absent → the AI behaves
+ * exactly as before (offers the scheduling link).
+ */
+export interface ReferralBookingCapability {
+  /** The soonest open times, to proactively offer. */
+  initialSlots: TimeOption[];
+  /** Agent timezone name + today's date, so the model can reason about "Wednesday". */
+  timezoneLabel: string;
+  todayIso: string;
+  /** More/near open times. fromIso anchors near a requested day or after the last offer. */
+  findTimes: (fromIso?: string) => Promise<TimeOption[]>;
+  /** Book a specific time (re-checked at commit). Returns alternatives if it can't. */
+  bookTime: (iso: string) => Promise<{ ok: boolean; whenLabel: string; reason?: string; alternatives: TimeOption[] }>;
+}
+
+const OPTS_TEXT = (opts: TimeOption[]) =>
+  opts.length ? opts.map((o) => `${o.label} — iso ${o.startIso}`).join('\n') : '(none)';
+
+/**
+ * Booking-enabled response path: gives the model find_times + book_time tools
+ * so it can offer real times, honor a specific request ("how about Wednesday?"),
+ * pull more when none work, and book a confirmed pick. Bounded tool loop; the
+ * standard (no-booking) path stays untouched.
  */
 async function respondWithBooking(
   anthropic: Anthropic,
@@ -291,80 +312,88 @@ async function respondWithBooking(
   messages: Anthropic.MessageParam[],
   booking: ReferralBookingCapability,
 ): Promise<string | null> {
-  const slotList = booking.slots.map((s) => `- ${s.id}: ${s.label}`).join('\n');
   const system = `${baseSystem}
 
-DIRECT BOOKING — you can book the appointment yourself (do NOT send a scheduling link):
-You have these real, open times on the calendar:
-${slotList}
-When ${'the referral'} is ready, offer TWO of these times in your text (use the human labels, never the ids). When they pick one — or clearly agree to a specific time — call the book_appointment tool with the matching slot_id. Only ever offer or book times from this list; never invent a time. After the tool confirms, reply warmly confirming the exact day and time in one short text.`;
+DIRECT BOOKING — you book the appointment yourself. NEVER send a scheduling link or URL.
+Today is ${booking.todayIso}. The agent's timezone is ${booking.timezoneLabel}.
+Open times you can offer right now:
+${OPTS_TEXT(booking.initialSlots)}
+
+Rules:
+- When ${'the referral'} is ready, offer TWO real open times (use the human labels, never the iso).
+- To book, call book_time with the exact iso of a time that came from this list or from find_times. NEVER invent an iso or promise a time you haven't confirmed via a tool.
+- If they ask for a specific day/time, call find_times with from_iso near that day to get the real open times there, then offer/book from those.
+- If none of the offered times work, call find_times (optionally with from_iso) to get more.
+- Only book a time they've agreed to. After a successful booking, warmly confirm the exact day and time in one short text.`;
 
   const tools: Anthropic.Tool[] = [
     {
-      name: 'book_appointment',
+      name: 'find_times',
       description:
-        'Book the referral onto one of the provided open calendar slots. Only call after the referral has agreed to that specific time, and only with a slot_id from the provided list.',
+        'Get real open appointment times. Pass from_iso (ISO 8601) to find times near a specific day the referral asked about, or after the last offered time. Omit from_iso for the soonest open times.',
       input_schema: {
         type: 'object',
-        properties: { slot_id: { type: 'string', enum: booking.slots.map((s) => s.id) } },
-        required: ['slot_id'],
+        properties: { from_iso: { type: 'string', description: 'ISO 8601 anchor; times returned are at/after this.' } },
+      },
+    },
+    {
+      name: 'book_time',
+      description:
+        'Book the referral at this exact open time. iso must come from the offered list or from find_times. Re-checks availability and returns alternatives if it is not free.',
+      input_schema: {
+        type: 'object',
+        properties: { iso: { type: 'string', description: 'ISO 8601 start time to book.' } },
+        required: ['iso'],
       },
     },
   ];
 
-  const first = await withRetry(() =>
-    anthropic.messages.create({ model: PRIMARY_MODEL, max_tokens: 400, system, messages, tools }),
-  );
-
-  const toolUse = first.content.find(
-    (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use',
-  );
-
-  if (!toolUse) {
-    const textBlock = first.content.find((b): b is Anthropic.TextBlock => b.type === 'text');
-    const t = textBlock ? textBlock.text.trim() : '';
+  const convo: Anthropic.MessageParam[] = [...messages];
+  const textOf = (msg: Anthropic.Message): string | null => {
+    const tb = msg.content.find((b): b is Anthropic.TextBlock => b.type === 'text');
+    const t = tb ? tb.text.trim() : '';
     return t && t !== '[WAIT]' && t !== '[DONE]' ? t : null;
+  };
+
+  for (let round = 0; round < 4; round++) {
+    const resp = await withRetry(() =>
+      anthropic.messages.create({ model: PRIMARY_MODEL, max_tokens: 500, system, messages: convo, tools }),
+    );
+    const toolUses = resp.content.filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use');
+    if (toolUses.length === 0) return textOf(resp);
+
+    convo.push({ role: 'assistant', content: resp.content });
+    const results: Anthropic.ToolResultBlockParam[] = [];
+    for (const tu of toolUses) {
+      let content: string;
+      try {
+        if (tu.name === 'find_times') {
+          const fromIso = typeof (tu.input as { from_iso?: unknown }).from_iso === 'string' ? (tu.input as { from_iso: string }).from_iso : undefined;
+          const opts = await booking.findTimes(fromIso);
+          content = opts.length ? `Open times:\n${OPTS_TEXT(opts)}` : 'No open times found in that range — try a different day.';
+        } else if (tu.name === 'book_time') {
+          const iso = typeof (tu.input as { iso?: unknown }).iso === 'string' ? (tu.input as { iso: string }).iso : '';
+          const r = await booking.bookTime(iso);
+          content = r.ok
+            ? `BOOKED for ${r.whenLabel}. Confirm this exact day and time warmly in one short text.`
+            : `Not booked (${r.reason ?? 'unavailable'}). ${r.alternatives.length ? `Offer these instead:\n${OPTS_TEXT(r.alternatives)}` : 'Ask them for another day and use find_times.'}`;
+        } else {
+          content = 'Unknown tool.';
+        }
+      } catch (err) {
+        console.error('[referral-booking] tool failed:', tu.name, err);
+        content = 'That action hit an error — apologize briefly and offer to sort out a time.';
+      }
+      results.push({ type: 'tool_result', tool_use_id: tu.id, content });
+    }
+    convo.push({ role: 'user', content: results });
   }
 
-  const slotId = typeof (toolUse.input as { slot_id?: unknown }).slot_id === 'string'
-    ? (toolUse.input as { slot_id: string }).slot_id
-    : '';
-  let result: { ok: boolean; whenLabel: string };
-  try {
-    result = await booking.execute(slotId);
-  } catch (err) {
-    console.error('[referral-booking] executor threw:', err);
-    result = { ok: false, whenLabel: '' };
-  }
-
-  const followup = await withRetry(() =>
-    anthropic.messages.create({
-      model: PRIMARY_MODEL,
-      max_tokens: 300,
-      system,
-      tools,
-      messages: [
-        ...messages,
-        { role: 'assistant', content: first.content },
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'tool_result',
-              tool_use_id: toolUse.id,
-              content: result.ok
-                ? `Booked for ${result.whenLabel}. Confirm this exact day and time warmly in one short text.`
-                : `Booking did not go through. Apologize briefly and offer to try another time.`,
-            },
-          ],
-        },
-      ],
-    }),
+  // Loop exhausted — one final text-only turn to close out cleanly.
+  const final = await withRetry(() =>
+    anthropic.messages.create({ model: PRIMARY_MODEL, max_tokens: 300, system, messages: convo }),
   );
-
-  const fb = followup.content.find((b): b is Anthropic.TextBlock => b.type === 'text');
-  if (fb && fb.text.trim()) return fb.text.trim();
-  return result.ok && result.whenLabel ? `You're all set for ${result.whenLabel} — talk soon!` : null;
+  return textOf(final);
 }
 
 /**
@@ -412,7 +441,7 @@ export async function generateReferralResponse(
 
   // Direct-booking path (flag-gated at the call site): the model can offer real
   // times and book one. Skips the critic loop — the tool constrains the output.
-  if (booking && booking.slots.length > 0) {
+  if (booking && booking.initialSlots.length > 0) {
     return respondWithBooking(anthropic, systemPrompt, messages, booking);
   }
 
