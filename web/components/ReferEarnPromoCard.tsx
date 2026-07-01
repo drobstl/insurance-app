@@ -17,7 +17,7 @@ export default function ReferEarnPromoCard() {
   const router = useRouter();
 
   return (
-    <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-[#0D4D4D] to-[#1a6868] ring-1 ring-[#f5c542]/50 animate-[goldGlow_3s_ease-in-out_infinite] p-3.5 w-full md:w-[255px] shrink-0">
+    <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-[#0D4D4D] to-[#1a6868] ring-1 ring-[#f5c542]/50 animate-[goldGlow_3s_ease-in-out_infinite] p-3.5 w-full h-full flex flex-col">
       <div className="flex items-center gap-2 mb-2">
         <div className="w-7 h-7 rounded-full bg-[#f5c542]/20 ring-1 ring-[#f5c542]/40 flex items-center justify-center shrink-0">
           <svg className="w-4 h-4 text-[#f5c542]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -37,7 +37,7 @@ export default function ReferEarnPromoCard() {
       <button
         type="button"
         onClick={() => router.push('/dashboard/refer-and-earn')}
-        className="mt-2.5 w-full bg-[#f5c542] hover:bg-[#ffd860] text-[#0D4D4D] px-4 py-2 rounded-md text-sm font-extrabold transition-colors"
+        className="mt-auto w-full bg-[#f5c542] hover:bg-[#ffd860] text-[#0D4D4D] px-4 py-2 rounded-md text-sm font-extrabold transition-colors"
       >
         Start earning →
       </button>
