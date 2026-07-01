@@ -396,6 +396,7 @@ export async function getActivityStats(
     createdAt?: unknown;
     scheduledAt?: unknown;
     status?: string;
+    kind?: string;
     leadId?: string;
     clientId?: string;
     fifResetBooked?: boolean | null;
@@ -414,6 +415,9 @@ export async function getActivityStats(
   const apptFlat: ApptDoc[] = [];
   for (const apptDoc of apptsSnap.docs) {
     const data = apptDoc.data() as ApptDoc;
+    // Callbacks share this collection (so the calendar renders them) but are
+    // NOT appointments — never count them toward booked/show/sit metrics.
+    if (data.kind === 'callback') continue;
     apptFlat.push(data);
     const entityId = data.leadId || data.clientId;
     if (!entityId) continue;

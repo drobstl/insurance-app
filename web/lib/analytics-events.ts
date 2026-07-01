@@ -82,6 +82,11 @@ export const ANALYTICS_EVENTS = {
   LEAD_CALL_INITIATED: 'lead_call_initiated',
   CALL_OUTCOME_RECORDED: 'call_outcome_recorded',
   APPOINTMENT_BOOKED: 'appointment_booked',
+  // Lead asked to be called back at a COMMITTED time. Deliberately separate
+  // from appointment_booked so the booking funnel stays honest — a callback is
+  // not a sit. Fired only when the agent sets a specific time (the "None given"
+  // path stays a plain call_outcome_recorded / callback_requested).
+  CALLBACK_SCHEDULED: 'callback_scheduled',
   BOOKING_CONFIRMATION_SENT: 'booking_confirmation_sent',
   // Post-sit advanced-market motion — the agent booked the client a
   // "FIF reset" (Financial Information Form reset) with an upline SME
@@ -444,6 +449,12 @@ export type AnalyticsEventPropertiesMap = {
     mode?: 'phone' | 'video';
     duration_minutes?: number;
     hours_until_appointment?: number;
+  } & GenericEventProperties;
+  callback_scheduled: {
+    lead_id?: string;
+    callback_id?: string;
+    hours_until_callback?: number;
+    source?: 'detail_panel';
   } & GenericEventProperties;
   booking_confirmation_sent: {
     lead_id?: string;

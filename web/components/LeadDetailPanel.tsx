@@ -18,8 +18,10 @@ import { db } from '../firebase';
 import { LeadTagEditor } from './LeadTagEditor';
 import { LeadNotesLog } from './LeadNotesLog';
 import { LeadFollowUpControl } from './LeadFollowUpControl';
+import { followUpChip } from '../lib/lead-follow-up';
 import { useDashboard } from '../app/dashboard/DashboardContext';
 import AppointmentPicker from './AppointmentPicker';
+import CallbackPicker from './CallbackPicker';
 import DoNotContactToggle from './DoNotContactToggle';
 import Link from 'next/link';
 import { DEFAULT_DIAL_SCRIPT, renderDialScript } from '../lib/dial-script';
@@ -723,6 +725,7 @@ export default function LeadDetailPanel({
   // outcome — the picker's submit endpoint atomically creates the
   // appointment AND logs the 'booked' dial outcome in one round-trip.
   const [showAppointmentPicker, setShowAppointmentPicker] = useState(false);
+  const [showCallbackPicker, setShowCallbackPicker] = useState(false);
   const [showPresentation, setShowPresentation] = useState(false);
   const [reschedulingAppointmentId, setReschedulingAppointmentId] = useState<string | null>(null);
   const [cancellingAppointmentId, setCancellingAppointmentId] = useState<string | null>(null);
@@ -944,7 +947,14 @@ export default function LeadDetailPanel({
       orderBy('scheduledAt', 'desc'),
     );
     const unsub = onSnapshot(q, (snap) => {
-      setAppointments(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<AppointmentEntry, 'id'>) })));
+      // Exclude callbacks — they share this collection (so the calendar shows
+      // them) but are not appointments; they never belong in the sit list,
+      // outcome chips, or the "Present" affordance.
+      setAppointments(
+        snap.docs
+          .filter((d) => (d.data() as { kind?: string }).kind !== 'callback')
+          .map((d) => ({ id: d.id, ...(d.data() as Omit<AppointmentEntry, 'id'>) })),
+      );
     }, (err) => {
       // First-time queries on a new compound (leadId + scheduledAt
       // sort) need an index; Firestore returns a console URL to
@@ -1401,6 +1411,15 @@ export default function LeadDetailPanel({
       setShowAppointmentPicker(true);
       return;
     }
+    // 'Wants callback' opens the callback picker, which asks for a committed
+    // time (→ calendar entry + exact-time follow-up) or "None given" (→ plain
+    // dial outcome, next-day follow-up). It fires its own analytics + dial
+    // POST, so skip the direct dial-log POST below.
+    if (outcome === 'callback_requested') {
+      setOutcomePrompt(false);
+      setShowCallbackPicker(true);
+      return;
+    }
     setLoggingOutcome(true);
     setOutcomeError(null);
     try {
@@ -1636,6 +1655,16 @@ export default function LeadDetailPanel({
                   {fifResetChip.label}
                 </span>
               )}
+              {/* Follow-up at a glance — the editor lives in the "organize"
+                  strip below; this keeps a set reminder visible up top. */}
+              {(() => {
+                const fu = followUpChip(lead.followUpAt);
+                return fu ? (
+                  <span className={`inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded ${fu.classes}`}>
+                    {fu.label}
+                  </span>
+                ) : null;
+              })()}
               {isLeadCreditEligible(lead.ageYears, lead.dateOfBirth) && (
                 <span className={`inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded ${getLeadCreditChip().classes}`}>
                   {getLeadCreditChip().label}
@@ -1660,35 +1689,6 @@ export default function LeadDetailPanel({
               </div>
             )}
           </div>
-        </div>
-
-        {/* Tags — agent-defined labels for slicing the book */}
-        <div className="px-5 pt-3">
-          <LeadTagEditor
-            user={user}
-            leadId={lead.id}
-            assignedTagIds={lead.tagIds}
-            tags={agentProfile.leadTags ?? []}
-            onCreateTag={createLeadTag}
-            onDeleteTag={deleteLeadTag}
-          />
-        </div>
-
-        {/* Follow-up reminder — manual side of smart follow-up (Step 1) */}
-        <div className="px-5 pt-3">
-          <LeadFollowUpControl
-            user={user}
-            leadId={lead.id}
-            followUpAt={lead.followUpAt}
-            followUpNote={lead.followUpNote}
-            booked={
-              !!lead.convertedToClientId ||
-              appointments.some((a) => {
-                const t = a.scheduledAt?.toMillis();
-                return a.status === 'scheduled' && typeof t === 'number' && t > Date.now();
-              })
-            }
-          />
         </div>
 
         {/* Action toolbar — call panel (carries dial count + last outcome), then book / close */}
@@ -1844,6 +1844,33 @@ export default function LeadDetailPanel({
               ✓ Converted to client. <a href="/dashboard/clients" className="font-semibold underline">View clients</a>
             </div>
           )}
+        </div>
+
+        {/* Organize this lead — tags + follow-up. Sits BELOW the call/action
+            cluster on purpose: these manage the lead for later, they're not the
+            do-now action (which is to call). */}
+        <div className="px-5 py-3 border-t border-[#f0f0f0] space-y-3">
+          <LeadTagEditor
+            user={user}
+            leadId={lead.id}
+            assignedTagIds={lead.tagIds}
+            tags={agentProfile.leadTags ?? []}
+            onCreateTag={createLeadTag}
+            onDeleteTag={deleteLeadTag}
+          />
+          <LeadFollowUpControl
+            user={user}
+            leadId={lead.id}
+            followUpAt={lead.followUpAt}
+            followUpNote={lead.followUpNote}
+            booked={
+              !!lead.convertedToClientId ||
+              appointments.some((a) => {
+                const t = a.scheduledAt?.toMillis();
+                return a.status === 'scheduled' && typeof t === 'number' && t > Date.now();
+              })
+            }
+          />
         </div>
 
         {/* What we presented & protected — full history of every Protect moment */}
@@ -2773,6 +2800,21 @@ export default function LeadDetailPanel({
           On successful save, immediately opens the confirmation
           drawer (Chunk 4e) so the agent can fire the SMS while the
           lead is still on the line. */}
+      {showCallbackPicker && lead && (
+        <CallbackPicker
+          user={user}
+          leadId={lead.id}
+          leadName={lead.name || 'this lead'}
+          phoneDialed={activeDialPhone}
+          onDone={() => {
+            setShowCallbackPicker(false);
+            setActiveDialPhone(null);
+            onOutcomeLogged?.('callback_requested');
+          }}
+          onCancel={() => setShowCallbackPicker(false)}
+        />
+      )}
+
       {showAppointmentPicker && lead && (
         <AppointmentPicker
           user={user}
