@@ -350,26 +350,26 @@ export default function DashboardHomePage() {
       <EarlyAdopterBanner />
       <ProEndingBanner />
 
-      {/* ── Top row: Today's Challenge · Refer & Earn · What's New ── */}
-      {/* Three equal-height cards across the top to organize the home
-          page (Daniel's call). Today's Challenge is gated on
-          NEXT_PUBLIC_CHALLENGES_ENABLED; Refer & Earn is always shown;
-          What's New self-hides once dismissed and expands on click.
-          Cards stack on mobile. */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 items-stretch">
-        {CHALLENGES_ENABLED && <TodaysChallengeCard />}
-        <ReferEarnPromoCard />
-        <WhatsNewSpotlight />
-      </div>
+      {/* ── Hero row: value number (dominant) + right rail ─────── */}
+      {/* The $ value number stays the star on the left; the right rail
+          fills what used to be dead space with the ranked cards —
+          Today's Challenge as the primary rail card, then Refer & Earn +
+          What's New as smaller tiles. Stacks on mobile. */}
+      <div className="grid grid-cols-1 md:grid-cols-[1.4fr_1fr] gap-5 mb-8 md:mb-10 items-stretch">
+        <div className="flex flex-col justify-center">
+          <p className="text-5xl md:text-8xl font-extrabold text-[#005851] tracking-tight leading-none">
+            {formatValue(totalValue)}
+          </p>
+          <p className="text-sm text-[#707070] mt-2">total value created</p>
+        </div>
 
-      {/* ── Value Hero ─────────────────────────────────────────── */}
-      {/* Refer & Earn moved up into the top row; the value number stands
-          on its own beneath it. */}
-      <div className="mb-8 md:mb-10">
-        <p className="text-5xl md:text-8xl font-extrabold text-[#005851] tracking-tight">
-          {formatValue(totalValue)}
-        </p>
-        <p className="text-sm text-[#707070] mt-1">total value created</p>
+        <div className="flex flex-col gap-3">
+          {CHALLENGES_ENABLED && <TodaysChallengeCard />}
+          <div className="grid grid-cols-2 gap-3 items-stretch">
+            <ReferEarnPromoCard />
+            <WhatsNewSpotlight />
+          </div>
+        </div>
       </div>
 
       {/* ── Next training session card ─────────────────────────── */}
