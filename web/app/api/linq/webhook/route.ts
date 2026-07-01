@@ -17,7 +17,11 @@ import {
   detectReferralBookingSignal,
   type ConversationMessage,
   type ReferralContext,
+  type ReferralBookingCapability,
 } from '../../../../lib/referral-ai';
+import { getAvailableSlots } from '../../../../lib/agent-availability';
+import { bookReferralAppointment } from '../../../../lib/referral-booking';
+import { GOOGLE_CALENDAR_CALLBACK_PATH } from '../../../../lib/oauth-redirect';
 import {
   generateConservationResponse,
   detectSaveSignal,
@@ -832,9 +836,50 @@ async function handleReferralReply(
     // non-critical
   }
 
+  // Direct-booking (flag-gated, off by default): give the AI real open times +
+  // the ability to book one itself. Any failure here is non-blocking — the AI
+  // falls back to the standard scheduling-link path.
+  let booking: ReferralBookingCapability | undefined;
+  if (process.env.REFERRAL_DIRECT_BOOKING === 'on') {
+    try {
+      const agentId = referralRef.parent.parent!.id;
+      const origin = (process.env.NEXT_PUBLIC_APP_URL || 'https://agentforlife.app').replace(/\/+$/, '');
+      const callbackUrl = `${origin}${GOOGLE_CALENDAR_CALLBACK_PATH}`;
+      const tz = (agentData.timezone as string) || (agentData.bookingTimeZone as string) || 'America/Chicago';
+      const slots = await getAvailableSlots({ agentId, callbackUrl, timeZone: tz, count: 3 });
+      if (slots.length > 0) {
+        booking = {
+          slots: slots.map((s) => ({ id: s.id, label: s.label, startIso: s.startIso })),
+          execute: async (slotId) => {
+            const slot = slots.find((s) => s.id === slotId);
+            if (!slot) return { ok: false, whenLabel: '' };
+            const res = await bookReferralAppointment({
+              db,
+              agentId,
+              referralRef,
+              referralId,
+              referralName: (referralData.referralName as string) || 'Friend',
+              referralPhone: (referralData.referralPhone as string) || senderHandle || null,
+              referralEmail: (referralData.referralEmail as string) || null,
+              startIso: slot.startIso,
+              endIso: slot.endIso,
+              durationMinutes: 30,
+              timeZone: tz,
+              callbackUrl,
+              origin,
+            });
+            return { ok: res.ok, whenLabel: slot.label };
+          },
+        };
+      }
+    } catch (bookingSetupErr) {
+      console.error('[referral] direct-booking setup failed (non-blocking):', bookingSetupErr);
+    }
+  }
+
   let aiResponse: string | null = null;
   try {
-    aiResponse = await generateReferralResponse(ctx, text);
+    aiResponse = await generateReferralResponse(ctx, text, booking);
   } catch (aiError) {
     console.error('AI generation failed for referral', referralId, aiError);
     try { await stopTypingIndicator(chatId); } catch { /* ignore */ }
