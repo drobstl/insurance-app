@@ -1,31 +1,34 @@
 'use client';
 
-import { useEffect, useRef, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import confetti from 'canvas-confetti';
 import { useDashboard } from '../app/dashboard/DashboardContext';
 import { useChallengeProgress } from '../lib/useChallengeProgress';
 import { usePowerHour } from '../lib/usePowerHour';
+import { useCountUp } from '../lib/useCountUp';
 import { CHALLENGE_COLORS as C } from '../lib/challenge-theme';
 import ChallengeRing from './ChallengeRing';
+import StreakFlame from './StreakFlame';
 
 /**
- * Today's Challenge — leads / Call-mode Scoreboard. The bold, standout
- * surface: a dark navy tile that deliberately breaks from the white leads
- * list. It doubles as the Power Hour dial timer.
+ * Today's Challenge — leads / Call-mode Scoreboard. The bold surface: a
+ * dark TEAL tile (not navy — keeps it in the app's teal world) that
+ * breaks from the white leads list. Vibrancy lives in the bright ring +
+ * warm streak flame (research-backed, Jun 30); it doubles as the Power
+ * Hour dial timer.
  *
- *  - Idle: dual rings (outer = today's dials vs. yesterday, inner = this
- *    week vs. last week) + a Power Hour start row.
- *  - Running: the rings become a focus timer (gold = time left, mint =
+ *  - Idle: dual rings (outer = today vs yesterday, inner = week) + the
+ *    Power Hour start row.
+ *  - Running: rings become a focus timer (gold = time left, bright =
  *    session dials) with live pace.
- *  - Win: a single mint flip + one confetti burst per local day.
+ *  - Win: card pops + one confetti burst per local day (gold/coral/mint).
  *
  * `refreshSignal` is bumped by the leads page after each logged dial so
- * the rings move in near-real-time without sockets.
+ * the rings move in near-real-time.
  */
 
 const DURATIONS = [30, 60, 90] as const;
 
-/** prefers-reduced-motion (SSR-safe). */
 function useReducedMotion(): boolean {
   return useSyncExternalStore(
     (onChange) => {
@@ -45,7 +48,6 @@ function mmss(ms: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-/** Agent-local YYYY-MM-DD, for once-per-day confetti de-dup. */
 function localDateKey(): string {
   const d = new Date();
   return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
@@ -58,109 +60,112 @@ export default function ChallengeScoreboard({ refreshSignal }: { refreshSignal?:
   const reduced = useReducedMotion();
 
   const prevWonRef = useRef(false);
+  const [justWon, setJustWon] = useState(false);
 
-  // One confetti burst when the daily challenge first crosses today, at
-  // most once per local day (survives refresh via localStorage).
+  const dailyCount = useCountUp(progress?.daily.current ?? 0);
+
   useEffect(() => {
     if (!progress || !user) return;
     const won = progress.daily.won;
     const wasWon = prevWonRef.current;
     prevWonRef.current = won;
     if (!won || wasWon) return;
-    if (reduced) return;
-    const key = `afl-challenge-celebrated-${user.uid}`;
-    try {
-      if (localStorage.getItem(key) === localDateKey()) return;
-      localStorage.setItem(key, localDateKey());
-    } catch {
-      /* ignore */
+    // Card pop + one confetti burst per local day (survives refresh).
+    if (!reduced) {
+      // Fire the one-shot win pop when the daily challenge flips to won.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setJustWon(true);
+      const t = setTimeout(() => setJustWon(false), 600);
+      const key = `afl-challenge-celebrated-${user.uid}`;
+      let already = false;
+      try {
+        already = localStorage.getItem(key) === localDateKey();
+        if (!already) localStorage.setItem(key, localDateKey());
+      } catch {
+        /* ignore */
+      }
+      if (!already) {
+        confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 }, colors: [C.progressBright, C.gold, C.coral] });
+        confetti({ particleCount: 60, spread: 100, origin: { y: 0.5 }, colors: [C.gold, C.progressBright] });
+      }
+      return () => clearTimeout(t);
     }
-    confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 }, colors: [C.mint, C.gold, C.sky, C.green] });
-    confetti({ particleCount: 60, spread: 100, origin: { y: 0.5 }, colors: [C.mint, C.gold] });
   }, [progress, user, reduced]);
 
   if (!progress) return null;
   const { daily, weekly, streak } = progress;
 
-  const streakChip =
-    streak.current > 0 ? (
-      <span
-        className="text-[12px] font-semibold rounded-full px-2.5 py-0.5 self-start whitespace-nowrap"
-        style={{ background: C.gold, color: C.textOnNeon }}
-      >
-        🔥 {streak.current} day streak
-      </span>
-    ) : null;
-
   const active = ph.status === 'running' || ph.status === 'paused';
   const sessionDials = progress.session?.current ?? 0;
+  const popClass = justWon ? 'tc-pop' : '';
 
   // ── Power Hour: running / paused / expired ──
   if (active) {
     const timePct = ph.durationMs > 0 ? ph.remainingMs / ph.durationMs : 0;
     const elapsedFrac = ph.durationMs > 0 ? ph.elapsedMs / ph.durationMs : 0;
-    // Project end-of-session pace once there's enough signal (~2 min in).
     const pace = ph.elapsedMs > 120_000 && elapsedFrac > 0 ? Math.round(sessionDials / elapsedFrac) : null;
     const beatsYesterday = pace != null && pace > daily.previous;
 
     return (
       <div
         className="rounded-2xl p-5 mb-4 flex items-center gap-4"
-        style={{ background: C.stage, border: `1px solid ${ph.expired ? C.mint : C.gold}` }}
+        style={{ background: C.stage, border: `2px solid ${ph.expired ? C.progressBright : C.gold}`, borderRightWidth: 5, borderBottomWidth: 5 }}
       >
         <ChallengeRing
           size={130}
           outer={{ pct: timePct, color: C.gold }}
-          inner={{ pct: daily.target > 0 ? sessionDials / daily.target : 0, color: C.mint }}
+          inner={{ pct: daily.target > 0 ? sessionDials / daily.target : 0, color: C.progressBright }}
+          trackColor={C.ringTrackDark}
           centerTop={ph.expired ? 'Time!' : mmss(ph.remainingMs)}
           centerBottom={ph.expired ? undefined : 'left'}
-          centerTopColor={ph.expired ? C.mint : C.white}
+          centerTopColor={ph.expired ? C.progressBright : C.onDark}
+          centerBottomColor={C.onDarkMuted}
           mono={!ph.expired}
         />
         <div className="flex flex-col gap-2 min-w-0">
-          <span className="text-[11px] font-semibold tracking-wide" style={{ color: C.gold }}>
+          <span className="text-[11px] font-bold tracking-wide" style={{ color: C.gold }}>
             POWER HOUR · {ph.status === 'paused' ? 'PAUSED' : ph.expired ? 'DONE' : 'LIVE'}
           </span>
           <div className="flex items-baseline gap-1.5">
-            <span className="text-2xl font-semibold" style={{ color: C.mint }}>
+            <span className="text-2xl font-extrabold" style={{ color: C.progressBright }}>
               {sessionDials}
             </span>
-            <span className="text-[12px]" style={{ color: C.textMuted }}>
+            <span className="text-[12px]" style={{ color: C.onDarkMuted }}>
               dials this session
             </span>
           </div>
           {ph.expired ? (
-            <p className="text-[13px]" style={{ color: C.textMuted }}>
+            <p className="text-[13px]" style={{ color: C.onDarkMuted }}>
               {sessionDials} dials in {Math.round(ph.durationMs / 60000)} min. Nice block.
             </p>
           ) : pace != null ? (
-            <p className="text-[13px]" style={{ color: C.white }}>
-              On pace for <span style={{ color: C.mint, fontWeight: 600 }}>{pace}</span>
+            <p className="text-[13px]" style={{ color: C.onDark }}>
+              On pace for <span style={{ color: C.progressBright, fontWeight: 700 }}>{pace}</span>
               {beatsYesterday ? ' — beats ' + daily.previous : ''}
             </p>
           ) : (
-            <p className="text-[13px]" style={{ color: C.textMuted }}>
+            <p className="text-[13px]" style={{ color: C.onDarkMuted }}>
               Dial away — we&apos;re counting.
             </p>
           )}
-          {streakChip}
+          <StreakFlame count={streak.current} variant="dark" />
           <div className="flex gap-3 mt-0.5">
             {ph.expired ? (
-              <button onClick={ph.end} className="text-[12px] font-semibold" style={{ color: C.mint }}>
+              <button onClick={ph.end} className="text-[12px] font-bold" style={{ color: C.progressBright }}>
                 Done
               </button>
             ) : (
               <>
                 {ph.status === 'running' ? (
-                  <button onClick={ph.pause} className="text-[12px]" style={{ color: C.textMuted }}>
+                  <button onClick={ph.pause} className="text-[12px]" style={{ color: C.onDarkMuted }}>
                     ⏸ Pause
                   </button>
                 ) : (
-                  <button onClick={ph.resume} className="text-[12px]" style={{ color: C.mint }}>
+                  <button onClick={ph.resume} className="text-[12px]" style={{ color: C.progressBright }}>
                     ▶ Resume
                   </button>
                 )}
-                <button onClick={ph.end} className="text-[12px]" style={{ color: C.textMuted }}>
+                <button onClick={ph.end} className="text-[12px]" style={{ color: C.onDarkMuted }}>
                   End session
                 </button>
               </>
@@ -177,55 +182,59 @@ export default function ChallengeScoreboard({ refreshSignal }: { refreshSignal?:
 
   return (
     <div
-      className="rounded-2xl p-5 mb-4 flex flex-col sm:flex-row items-center gap-5"
-      style={{ background: C.stage, border: `1px solid ${daily.won ? C.mint : C.border}` }}
+      className={`rounded-2xl p-5 mb-4 flex flex-col sm:flex-row items-center gap-5 ${popClass}`}
+      style={{ background: C.stage, border: `2px solid ${daily.won ? C.gold : C.stageBorder}`, borderRightWidth: 5, borderBottomWidth: 5 }}
     >
       <ChallengeRing
         size={130}
-        outer={{ pct: dailyPct, color: C.mint }}
-        inner={{ pct: weeklyPct, color: C.softTeal }}
-        centerTop={String(daily.current)}
+        outer={{ pct: dailyPct, color: C.progressBright }}
+        inner={{ pct: weeklyPct, color: C.weeklyDark }}
+        trackColor={C.ringTrackDark}
+        centerTop={String(dailyCount)}
         centerBottom={daily.won ? 'beat it' : `of ${daily.target}`}
-        centerTopColor={daily.won ? C.mint : C.white}
+        centerTopColor={daily.won ? C.progressBright : C.onDark}
+        centerBottomColor={C.onDarkMuted}
+        animate
+        liveDot={!daily.won}
+        heartbeat
       />
 
       <div className="flex flex-col gap-2 min-w-0 flex-1">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[11px] font-semibold tracking-wide" style={{ color: C.sky }}>
+          <span className="text-[11px] font-bold tracking-wide" style={{ color: C.labelMint }}>
             TODAY&apos;S CHALLENGE
           </span>
-          {streakChip}
+          <StreakFlame count={streak.current} variant="dark" />
         </div>
 
         {daily.won ? (
-          <p className="text-lg font-semibold" style={{ color: C.white }}>
+          <p className="text-lg font-bold" style={{ color: C.onDark }}>
             Beat it.{' '}
-            <span style={{ color: C.textMuted }}>
+            <span style={{ color: C.onDarkMuted }}>
               {daily.isFixedGoal ? 'Goal cleared' : `+${daily.current - daily.previous} over yesterday`}
             </span>
           </p>
         ) : (
-          <p className="text-lg font-semibold" style={{ color: C.white }}>
+          <p className="text-lg font-bold" style={{ color: C.onDark }}>
             {daily.isFixedGoal ? `Make ${daily.target} dials` : 'Beat yesterday'}
-            <span style={{ color: C.textMuted }}> · {daily.toGo} to go</span>
+            <span style={{ color: C.onDarkMuted }}> · {daily.toGo} to go</span>
           </p>
         )}
 
-        <p className="text-[12px]" style={{ color: C.textMuted }}>
+        <p className="text-[12px]" style={{ color: C.onDarkMuted }}>
           This week {weekly.current} · {weekly.won ? 'beat last week!' : `beat ${weekly.target}`}
         </p>
 
-        {/* Power Hour start */}
         <div className="flex items-center gap-2 flex-wrap mt-1.5">
-          <span className="text-[12px]" style={{ color: C.textMuted }}>
+          <span className="text-[12px]" style={{ color: C.onDarkMuted }}>
             Power hour
           </span>
           {DURATIONS.map((d) => (
             <button
               key={d}
               onClick={() => ph.start(d)}
-              className="text-[12px] font-semibold rounded-lg px-3 py-1.5"
-              style={{ background: C.track, color: C.mint, border: `1px solid ${C.border}` }}
+              className="text-[12px] font-bold rounded-lg px-3 py-1.5"
+              style={{ background: C.ringTrackDark, color: C.progressBright, border: `1px solid ${C.stageBorder}` }}
             >
               {d} min
             </button>
