@@ -1,6 +1,11 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import {
+  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+} from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getAnalytics, isSupported } from 'firebase/analytics';
 
@@ -28,7 +33,24 @@ if (
 ) {
   auth.settings.appVerificationDisabledForTesting = true;
 }
-export const db = getFirestore(app);
+// Firestore with an on-device (IndexedDB) cache so `onSnapshot` paints
+// from the last-known data INSTANTLY on revisit, then reconciles from the
+// server — killing the blank-then-fill flash on navigation. Browser-only
+// (IndexedDB); SSR/node falls back to the plain in-memory client.
+// `persistentMultipleTabManager` keeps multiple open tabs consistent.
+function initDb() {
+  if (typeof window === 'undefined') return getFirestore(app);
+  try {
+    return initializeFirestore(app, {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+    });
+  } catch {
+    // Already initialized (HMR re-eval) or persistence unavailable →
+    // return the existing/plain client.
+    return getFirestore(app);
+  }
+}
+export const db = initDb();
 export const storage = getStorage(app);
 
 // Initialize Analytics (only runs in the browser, safe for SSR)
