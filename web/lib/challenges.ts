@@ -53,6 +53,25 @@ export interface StreakResult {
   current: number;
 }
 
+/**
+ * Dial-outcome vocabulary — mirrors the locked set persisted by
+ * `/api/leads/[leadId]/dials`. Kept in this pure (client + server safe)
+ * module so the session aggregation and the recap UI share one source of
+ * truth. Order here is the recap's display priority (money first).
+ */
+export const DIAL_OUTCOMES = [
+  'booked',
+  'callback_requested',
+  'left_vm',
+  'no_answer',
+  'wrong_number',
+  'not_interested',
+  'do_not_call',
+] as const;
+export type DialOutcome = (typeof DIAL_OUTCOMES)[number];
+/** Per-outcome dial counts within a Power Hour session window. */
+export type SessionOutcomeCounts = Partial<Record<DialOutcome, number>>;
+
 export interface ChallengeProgress {
   daily: ChallengeResult;
   weekly: ChallengeResult;
@@ -60,9 +79,10 @@ export interface ChallengeProgress {
   /**
    * Power Hour session count — present only when the request carried a
    * session start. The timer + pace live client-side; the server just
-   * counts dials logged since the session began.
+   * counts dials logged since the session began. `byOutcome` breaks that
+   * session total down for the end-of-session recap.
    */
-  session?: { current: number };
+  session?: { current: number; byOutcome?: SessionOutcomeCounts };
   /** Server clock (epoch ms) the progress was computed at. */
   generatedAt: number;
 }

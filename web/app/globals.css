@@ -201,6 +201,21 @@ input[type="range"].slider-thumb:focus::-webkit-slider-thumb {
 @keyframes revealLeft { from { opacity: 0; transform: translateX(-30px); } to { opacity: 1; transform: translateX(0); } }
 @keyframes revealRight { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: translateX(0); } }
 
+/* Reveal primitive (see components/Reveal.tsx) — the one "enter the field
+   of vision" entrance for anything that appears. Deliberately CSS, not JS:
+   the resting state is fully visible (opacity 1 by default), and the
+   keyframe only PLAYS the entrance — so if the animation is throttled,
+   interrupted, or skipped, content is never left stuck hidden. Motion is
+   gated behind prefers-reduced-motion so reduced-motion users just see the
+   content at rest, no animation. */
+@keyframes tcRise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes tcPop { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: no-preference) {
+  .tc-reveal { animation: tcRise 280ms cubic-bezier(0.16, 1, 0.3, 1); }
+  .tc-reveal-fade { animation: fadeIn 220ms ease-out; }
+  .tc-reveal-pop { animation: tcPop 260ms cubic-bezier(0.16, 1, 0.3, 1); }
+}
+
 /* Dashboard ticker marquee */
 @keyframes ticker {
   0%   { transform: translateX(0); }
