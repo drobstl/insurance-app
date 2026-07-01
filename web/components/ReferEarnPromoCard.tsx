@@ -30,7 +30,7 @@ export default function ReferEarnPromoCard() {
       </div>
 
       <p className="text-white font-bold text-sm leading-snug">
-        Up to <span className="text-[#f5c542]">$237.60</span> per agent you invite to AFL.
+        Up to <span className="text-[#f5c542]">$237.60/yr</span> per agent you invite to AFL.
       </p>
 
       <button
