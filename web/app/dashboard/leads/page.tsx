@@ -2302,9 +2302,13 @@ function LeadsPageInner() {
           }`}>
             {view === 'queue' && !loading && queueLeads.length > 0 ? (
               <div>
-                <div className="px-5 py-3 bg-[#daf3f0]/30 border-b border-[#d0d0d0] text-xs text-[#005851] font-semibold">
-                  Top of the queue is who you should call next.
-                  Outcome-chip the call and the queue resorts automatically.
+                <div className="px-5 py-3 bg-[#daf3f0]/30 border-b border-[#d0d0d0] text-xs text-[#005851] leading-relaxed">
+                  <span className="font-semibold">Top of the queue is who to call next.</span>{' '}
+                  Your never-dialed leads are lined up by how promising they look before you even dial —
+                  the freshest leads and the biggest mortgages rise to the top, so your opening calls are
+                  your best shots. The tags on each row show why a lead sits where it does; lead type
+                  (call-in, mail-in, digital) is labeled for you, not part of the ranking. Outcome-chip a
+                  call and the queue resorts automatically.
                 </div>
                 <ul className="divide-y divide-[#f1f1f1]">
                   {queueLeads.map((lead, idx) => {
