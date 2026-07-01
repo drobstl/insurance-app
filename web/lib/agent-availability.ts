@@ -120,15 +120,24 @@ function buildSlots(opts: { now: Date; tz: string; duration: number; hours: numb
   return slots;
 }
 
+/** Pick candidate hours that fall inside the agent's working window. */
+function hoursInWindow(base: number[], workStart: number, workEnd: number): number[] {
+  const inWin = base.filter((h) => h >= workStart && h < workEnd);
+  if (inWin.length) return inWin;
+  const granular = GRANULAR_HOURS.filter((h) => h >= workStart && h < workEnd);
+  return granular.length ? granular : [workStart];
+}
+
 /** The soonest few open slots — for the AI's proactive offer. */
 export async function getAvailableSlots(args: {
-  agentId: string; callbackUrl: string; timeZone?: string; durationMinutes?: number; count?: number; now?: Date;
+  agentId: string; callbackUrl: string; timeZone?: string; durationMinutes?: number; count?: number; now?: Date; workStart?: number; workEnd?: number;
 }): Promise<Slot[]> {
   const tz = args.timeZone?.trim() || DEFAULT_TZ;
   const duration = args.durationMinutes ?? 30;
   const now = args.now ?? new Date();
+  const hours = hoursInWindow(OFFER_HOURS, args.workStart ?? WORK_START, args.workEnd ?? WORK_END);
   const busy = await fetchBusy(args.agentId, args.callbackUrl, now.toISOString(), new Date(now.getTime() + (LOOKAHEAD_DAYS + 1) * 86400000).toISOString());
-  return buildSlots({ now, tz, duration, hours: OFFER_HOURS, busy, fromDate: now, count: args.count ?? 3 });
+  return buildSlots({ now, tz, duration, hours, busy, fromDate: now, count: args.count ?? 3 });
 }
 
 /**
@@ -137,7 +146,7 @@ export async function getAvailableSlots(args: {
  * hourly menu so a specific ask can be honored.
  */
 export async function findSlots(args: {
-  agentId: string; callbackUrl: string; timeZone?: string; durationMinutes?: number; count?: number; fromIso?: string; now?: Date;
+  agentId: string; callbackUrl: string; timeZone?: string; durationMinutes?: number; count?: number; fromIso?: string; now?: Date; workStart?: number; workEnd?: number;
 }): Promise<Slot[]> {
   const tz = args.timeZone?.trim() || DEFAULT_TZ;
   const duration = args.durationMinutes ?? 30;
@@ -145,8 +154,9 @@ export async function findSlots(args: {
   const parsed = args.fromIso ? new Date(args.fromIso) : now;
   const anchor = isNaN(parsed.getTime()) ? now : parsed;
   const winStart = anchor.getTime() < now.getTime() ? now : anchor;
+  const hours = hoursInWindow(GRANULAR_HOURS, args.workStart ?? WORK_START, args.workEnd ?? WORK_END);
   const busy = await fetchBusy(args.agentId, args.callbackUrl, winStart.toISOString(), new Date(winStart.getTime() + (LOOKAHEAD_DAYS + 1) * 86400000).toISOString());
-  return buildSlots({ now, tz, duration, hours: GRANULAR_HOURS, busy, fromDate: anchor, count: args.count ?? 4 });
+  return buildSlots({ now, tz, duration, hours, busy, fromDate: anchor, count: args.count ?? 4 });
 }
 
 /**
@@ -156,20 +166,22 @@ export async function findSlots(args: {
  * nearby alternatives when it's not bookable.
  */
 export async function resolveTime(args: {
-  agentId: string; callbackUrl: string; timeZone?: string; durationMinutes?: number; iso: string; now?: Date;
+  agentId: string; callbackUrl: string; timeZone?: string; durationMinutes?: number; iso: string; now?: Date; workStart?: number; workEnd?: number;
 }): Promise<{ ok: boolean; startIso?: string; endIso?: string; label?: string; reason?: string; alternatives: Slot[] }> {
   const tz = args.timeZone?.trim() || DEFAULT_TZ;
   const duration = args.durationMinutes ?? 30;
   const now = args.now ?? new Date();
+  const ws = args.workStart ?? WORK_START;
+  const we = args.workEnd ?? WORK_END;
   const start = new Date(args.iso);
   const alternatives = () =>
-    findSlots({ agentId: args.agentId, callbackUrl: args.callbackUrl, timeZone: tz, durationMinutes: duration, fromIso: args.iso, now });
+    findSlots({ agentId: args.agentId, callbackUrl: args.callbackUrl, timeZone: tz, durationMinutes: duration, fromIso: args.iso, now, workStart: ws, workEnd: we });
 
   if (isNaN(start.getTime())) return { ok: false, reason: 'invalid time', alternatives: await alternatives() };
   if (start.getTime() < now.getTime() + MIN_LEAD_MS) return { ok: false, reason: 'that time is in the past or too soon', alternatives: await alternatives() };
   const lp = localParts(start, tz);
   if (lp.weekday === 0 || lp.weekday === 6) return { ok: false, reason: 'that day is a weekend', alternatives: await alternatives() };
-  if (lp.hour < WORK_START || lp.hour >= WORK_END) return { ok: false, reason: 'that time is outside business hours', alternatives: await alternatives() };
+  if (lp.hour < ws || lp.hour >= we) return { ok: false, reason: 'that time is outside business hours', alternatives: await alternatives() };
 
   const endMs = start.getTime() + duration * 60000;
   const busy = await fetchBusy(args.agentId, args.callbackUrl, start.toISOString(), new Date(endMs).toISOString());

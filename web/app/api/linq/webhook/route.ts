@@ -22,6 +22,7 @@ import {
 import { getAvailableSlots, findSlots, resolveTime } from '../../../../lib/agent-availability';
 import { bookReferralAppointment } from '../../../../lib/referral-booking';
 import { GOOGLE_CALENDAR_CALLBACK_PATH } from '../../../../lib/oauth-redirect';
+import { getGoogleCalendarIntegration } from '../../../../lib/google-calendar-store';
 import {
   generateConservationResponse,
   detectSaveSignal,
@@ -836,28 +837,45 @@ async function handleReferralReply(
     // non-critical
   }
 
-  // Direct-booking (flag-gated, off by default): give the AI real open times +
-  // the ability to book one itself. Any failure here is non-blocking — the AI
-  // falls back to the standard scheduling-link path.
+  // Direct-booking: gated by BOTH the global rollout flag AND the agent's own
+  // choice (Settings → Booking mode = 'ai'). Default 'link' → this whole block
+  // is skipped and the AI uses the scheduling link, exactly as before. Any
+  // failure here is non-blocking — the AI falls back to the link path.
   let booking: ReferralBookingCapability | undefined;
-  if (process.env.REFERRAL_DIRECT_BOOKING === 'on') {
+  const bookingAgentId = referralRef.parent.parent!.id;
+  let directBookingEnabled =
+    process.env.REFERRAL_DIRECT_BOOKING === 'on' && agentData.bookingMode === 'ai';
+  if (directBookingEnabled) {
+    // Never offer unchecked times: require a connected Google Calendar. If it's
+    // not connected, silently fall back to the scheduling-link path.
     try {
-      const agentId = referralRef.parent.parent!.id;
+      const integ = await getGoogleCalendarIntegration(bookingAgentId);
+      if (!integ?.connected) directBookingEnabled = false;
+    } catch {
+      directBookingEnabled = false;
+    }
+  }
+  if (directBookingEnabled) {
+    try {
+      const agentId = bookingAgentId;
       const origin = (process.env.NEXT_PUBLIC_APP_URL || 'https://agentforlife.app').replace(/\/+$/, '');
       const callbackUrl = `${origin}${GOOGLE_CALENDAR_CALLBACK_PATH}`;
       const tz = (agentData.timezone as string) || (agentData.bookingTimeZone as string) || 'America/Chicago';
-      const initialSlots = await getAvailableSlots({ agentId, callbackUrl, timeZone: tz, count: 3 });
+      const bh = agentData.bookingHours as { startHour?: number; endHour?: number } | undefined;
+      const workStart = typeof bh?.startHour === 'number' ? bh.startHour : undefined;
+      const workEnd = typeof bh?.endHour === 'number' ? bh.endHour : undefined;
+      const initialSlots = await getAvailableSlots({ agentId, callbackUrl, timeZone: tz, count: 3, workStart, workEnd });
       if (initialSlots.length > 0) {
         booking = {
           initialSlots: initialSlots.map((s) => ({ startIso: s.startIso, label: s.label })),
           timezoneLabel: tz,
           todayIso: new Date().toISOString(),
           findTimes: async (fromIso) => {
-            const opts = await findSlots({ agentId, callbackUrl, timeZone: tz, fromIso, count: 4 });
+            const opts = await findSlots({ agentId, callbackUrl, timeZone: tz, fromIso, count: 4, workStart, workEnd });
             return opts.map((s) => ({ startIso: s.startIso, label: s.label }));
           },
           bookTime: async (iso) => {
-            const resolved = await resolveTime({ agentId, callbackUrl, timeZone: tz, iso });
+            const resolved = await resolveTime({ agentId, callbackUrl, timeZone: tz, iso, workStart, workEnd });
             if (!resolved.ok || !resolved.startIso || !resolved.endIso) {
               return {
                 ok: false,
