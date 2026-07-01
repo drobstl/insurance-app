@@ -3,6 +3,49 @@
 These apply to every session in every worktree of this repo. Read them
 before shipping anything.
 
+## ★★★ THE GOLDEN RULE — WE ARE NOT BUILDING NEW FEATURES ★★★
+
+**AS OF JULY 1, 2026 (Central Time), THE FEATURE-BUILDING PHASE IS OVER.**
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│                                                                │
+│   WE HAVE MORE THAN ENOUGH FEATURES. WE ARE DONE BUILDING.     │
+│                                                                │
+│   100% OF FOCUS GOES TO EXACTLY TWO THINGS:                    │
+│                                                                │
+│        1.  GET NEW USERS                                       │
+│        2.  KEEP THEM HAPPY                                     │
+│                                                                │
+│   DANIEL'S TIME BELONGS TO SALES. FULL STOP.                  │
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
+```
+
+- **Do NOT propose, scope, or build new features.** Not "quick" ones, not
+  "while we're here" ones, not clever ideas. The answer to "should we
+  build X?" is **no** by default.
+- **What IS allowed:** fixing features that are broken or confusing so they
+  keep users happy, removing friction that blocks getting/keeping users,
+  and anything that directly drives sales (ads, onboarding, conversion,
+  retention, support). Frame every task against: *does this get a new user
+  or keep an existing one happy?* If not, it doesn't get built.
+- **If a fix starts turning into a new feature, STOP and say so.** Call out
+  the line, and default to the smallest change that keeps a user happy.
+- **When Daniel drifts toward building, remind him of this rule.** His time
+  is the scarce resource, and it needs to be spent selling — not shipping
+  more surface area. Protect that focus even when a new idea is exciting.
+
+This rule overrides the instinct to be helpful by building. The most
+helpful thing is to keep us on sales.
+
+**This rule is PERMANENT until Daniel says the exact safe word. The safe
+word is `FEATURE SEASON OPEN`.** Nothing else lifts it — not "let's just
+build," not "quick one," not an exciting idea, not implied permission.
+Only the literal phrase `FEATURE SEASON OPEN` reopens feature building. If
+Daniel gestures at building without saying it, remind him of the safe word
+rather than proceeding.
+
 ## Deployment — merge to `main`, NEVER deploy by hand
 
 Production (`agentforlife.app`, Vercel project `web`) **auto-deploys on
