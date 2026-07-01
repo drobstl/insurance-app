@@ -2,7 +2,28 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { User } from 'firebase/auth';
-import type { ChallengeProgress } from './challenges';
+import type { ChallengeProgress, ChallengeResult } from './challenges';
+
+/** Move one challenge count up by a dial, recomputing won/toGo. */
+function bumpResult(r: ChallengeResult): ChallengeResult {
+  const current = r.current + 1;
+  return { ...r, current, won: current >= r.target, toGo: Math.max(0, r.target - current) };
+}
+
+/**
+ * Optimistically credit a single just-logged dial across today / this
+ * week / this session, so the counter ticks the instant the outcome is
+ * chipped. The next fetch reconciles to the server's real count; per-
+ * outcome breakdown is left untouched (it fills in on reconcile).
+ */
+function optimisticBump(p: ChallengeProgress): ChallengeProgress {
+  return {
+    ...p,
+    daily: bumpResult(p.daily),
+    weekly: bumpResult(p.weekly),
+    ...(p.session ? { session: { ...p.session, current: p.session.current + 1 } } : {}),
+  };
+}
 
 /**
  * Shared client hook for Today's Challenge progress. Both surfaces (the
@@ -64,7 +85,15 @@ export function useChallengeProgress(
   }, [user]);
 
   // Mount + explicit refresh signals + session-start changes.
+  const prevSignalRef = useRef(refreshSignal);
   useEffect(() => {
+    const prev = prevSignalRef.current;
+    prevSignalRef.current = refreshSignal;
+    // A dial was just logged (the leads page bumps refreshSignal on POST
+    // success) → tick the counter now, don't wait for the round-trip.
+    if (prev !== undefined && refreshSignal !== undefined && refreshSignal > prev) {
+      setProgress((p) => (p ? optimisticBump(p) : p));
+    }
     void fetchProgress();
   }, [fetchProgress, refreshSignal, sessionStartMs]);
 

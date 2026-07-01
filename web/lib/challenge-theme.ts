@@ -51,5 +51,11 @@ export const CHALLENGE_COLORS = {
   streakPillDarkBg: '#ffb01f',
   streakPillDarkText: '#231400',
   gold: '#f5c542', // milestone / win
+
+  // ── Recap funnel bars (Dials → Contacts → Booked) ──
+  // Dials is neutral slate on purpose — raw volume recedes so the eye
+  // lands on Contacts (progressBright) and Booked (gold). Palette locked
+  // with Daniel Jul 1.
+  funnelDials: '#7e9d94',
   coral: '#ff5a4d', // win confetti partner
 } as const;

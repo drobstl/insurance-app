@@ -78,6 +78,7 @@ export async function getChallengeProgress(
 
   const perDay = new Map<number, number>();
   let sessionCount = 0;
+  const sessionByOutcome: Record<string, number> = {};
 
   const leadsSnap = await getAdminFirestore()
     .collection('agents')
@@ -95,6 +96,8 @@ export async function getChallengeProgress(
       perDay.set(idx, (perDay.get(idx) ?? 0) + 1);
       if (sessionStartMs !== null && ms >= sessionStartMs && ms <= nowMs) {
         sessionCount++;
+        const outcome = typeof entry?.outcome === 'string' ? entry.outcome : 'unknown';
+        sessionByOutcome[outcome] = (sessionByOutcome[outcome] ?? 0) + 1;
       }
     }
   }
@@ -150,7 +153,9 @@ export async function getChallengeProgress(
     daily,
     weekly,
     streak,
-    ...(sessionStartMs !== null ? { session: { current: sessionCount } } : {}),
+    ...(sessionStartMs !== null
+      ? { session: { current: sessionCount, byOutcome: sessionByOutcome } }
+      : {}),
     generatedAt: nowMs,
   };
 }
