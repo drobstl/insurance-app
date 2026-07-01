@@ -97,7 +97,28 @@ export default function ChallengeScoreboard({ refreshSignal }: { refreshSignal?:
     }
   }, [progress, user, reduced]);
 
-  if (!progress) return null;
+  // Reserve the card's footprint while progress loads so the leads list
+  // below doesn't jump down when it arrives. Mirrors the idle card's flex
+  // structure + 130px ring, so the height matches at every breakpoint by
+  // construction (on desktop the ring dominates the row height).
+  if (!progress) {
+    return (
+      <div
+        className="rounded-2xl p-5 mb-4 flex flex-col sm:flex-row items-center gap-5"
+        style={{ background: C.stage, border: `2px solid ${C.stageBorder}`, borderRightWidth: 5, borderBottomWidth: 5 }}
+        aria-hidden
+      >
+        <div className="rounded-full flex-none animate-pulse" style={{ width: 130, height: 130, background: C.ringTrackDark }} />
+        <div className="flex flex-col gap-2 min-w-0 flex-1">
+          <div className="rounded animate-pulse" style={{ height: 11, width: 120, background: C.ringTrackDark }} />
+          <div className="rounded animate-pulse" style={{ height: 20, width: '58%', background: C.ringTrackDark }} />
+          <div className="rounded animate-pulse" style={{ height: 12, width: '44%', background: C.ringTrackDark }} />
+          <div className="rounded animate-pulse" style={{ height: 30, width: 208, background: C.ringTrackDark }} />
+        </div>
+      </div>
+    );
+  }
+
   const { daily, weekly, streak } = progress;
 
   const active = ph.status === 'running' || ph.status === 'paused';
@@ -133,7 +154,7 @@ export default function ChallengeScoreboard({ refreshSignal }: { refreshSignal?:
 
     return (
       <div
-        className="rounded-2xl p-5 mb-4 flex items-center gap-4"
+        className="tc-reveal-fade rounded-2xl p-5 mb-4 flex items-center gap-4"
         style={{ background: C.stage, border: `2px solid ${C.gold}`, borderRightWidth: 5, borderBottomWidth: 5 }}
       >
         <ChallengeRing
@@ -202,7 +223,7 @@ export default function ChallengeScoreboard({ refreshSignal }: { refreshSignal?:
 
   return (
     <div
-      className={`rounded-2xl p-5 mb-4 flex flex-col sm:flex-row items-center gap-5 ${popClass}`}
+      className={`tc-reveal-fade rounded-2xl p-5 mb-4 flex flex-col sm:flex-row items-center gap-5 ${popClass}`}
       style={{ background: C.stage, border: `2px solid ${daily.won ? C.gold : C.stageBorder}`, borderRightWidth: 5, borderBottomWidth: 5 }}
     >
       <ChallengeRing
@@ -211,7 +232,7 @@ export default function ChallengeScoreboard({ refreshSignal }: { refreshSignal?:
         inner={{ pct: weeklyPct, color: C.weeklyDark }}
         trackColor={C.ringTrackDark}
         centerTop={String(dailyCount)}
-        centerBottom={daily.won ? 'beat it' : `of ${daily.target}`}
+        centerBottom="dials"
         centerTopColor={daily.won ? C.progressBright : C.onDark}
         centerBottomColor={C.onDarkMuted}
         animate
