@@ -14,6 +14,8 @@ import { computeBadges, type EarnedBadge } from '../../lib/badges';
 import SectionTipCard from '../../components/SectionTipCard';
 import NextTrainingSessionCard from '../../components/NextTrainingSessionCard';
 import BadgeProgressCard from '../../components/BadgeProgressCard';
+import TodaysChallengeCard from '../../components/TodaysChallengeCard';
+import { CHALLENGES_ENABLED } from '../../lib/feature-flags';
 import WhatsNewSpotlight from '../../components/WhatsNewSpotlight';
 import GetStartedHome from '../../components/GetStartedHome';
 import GraduationCelebration from '../../components/GraduationCelebration';
@@ -347,19 +349,27 @@ export default function DashboardHomePage() {
       <PairPhoneBanner />
       <EarlyAdopterBanner />
       <ProEndingBanner />
-      <WhatsNewSpotlight />
-      {/* ── Value Hero ─────────────────────────────────────────── */}
-      {/* APV on the left; the compact Refer & Earn promo fills the empty
-          space on the right (stacks below the number on mobile). See
-          components/ReferEarnPromoCard.tsx. */}
-      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6 mt-2 mb-8 md:mb-10">
-        <div>
-          <p className="text-5xl md:text-8xl font-extrabold text-[#005851] tracking-tight">
+
+      {/* ── Hero row: value number (dominant) + right rail ─────── */}
+      {/* The $ value number stays the star on the left; the right rail
+          fills what used to be dead space with the ranked cards —
+          Today's Challenge as the primary rail card, then Refer & Earn +
+          What's New as smaller tiles. Stacks on mobile. */}
+      <div className="grid grid-cols-1 md:grid-cols-[1.4fr_1fr] gap-5 mb-8 md:mb-10 items-stretch">
+        <div className="flex flex-col justify-center">
+          <p className="text-5xl md:text-8xl font-extrabold text-[#005851] tracking-tight leading-none">
             {formatValue(totalValue)}
           </p>
-          <p className="text-sm text-[#707070] mt-1">total value created</p>
+          <p className="text-sm text-[#707070] mt-2">total value created</p>
         </div>
-        <ReferEarnPromoCard />
+
+        <div className="flex flex-col gap-3">
+          {CHALLENGES_ENABLED && <TodaysChallengeCard />}
+          <div className="grid grid-cols-2 gap-3 items-stretch">
+            <ReferEarnPromoCard />
+            <WhatsNewSpotlight />
+          </div>
+        </div>
       </div>
 
       {/* ── Next training session card ─────────────────────────── */}

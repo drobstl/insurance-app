@@ -108,9 +108,10 @@ export async function POST(
       lastDialAt: entry.at,
       lastDialOutcome: entry.outcome,
     };
-    // A callback request is a promise to circle back — auto-schedule a
-    // follow-up (default +2d) so the lead resurfaces instead of relying on
-    // the agent's memory. They can adjust the date on the lead afterward.
+    // A callback request with no committed time — auto-schedule a follow-up
+    // (next day) so the lead resurfaces instead of relying on the agent's
+    // memory. When the lead DOES give a time, the callbacks route handles it
+    // (exact-time follow-up + calendar entry). They can adjust the date after.
     if (entry.outcome === 'callback_requested') {
       leadUpdate.followUpAt = Timestamp.fromMillis(entry.at.toMillis() + CALLBACK_FOLLOWUP_MS);
     }

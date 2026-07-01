@@ -40,6 +40,7 @@ export async function GET(req: NextRequest) {
           email: (data.email as string) || '—',
           clientCount: clientsSnap.data().count,
           subscriptionStatus: (data.subscriptionStatus as string) || '—',
+          isAgencyOwner: data.isAgencyOwner === true,
         };
       })
     );

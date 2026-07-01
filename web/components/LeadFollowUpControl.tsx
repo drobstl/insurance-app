@@ -17,11 +17,15 @@ export function LeadFollowUpControl({
   leadId,
   followUpAt,
   followUpNote,
+  booked,
 }: {
   user: User | null;
   leadId: string;
   followUpAt?: Timestamp | null;
   followUpNote?: string;
+  /** True when the lead has an upcoming appointment or is already a client —
+   *  there's nothing to "follow up" on, so we suppress the date/chip. */
+  booked?: boolean;
 }) {
   const [saving, setSaving] = useState(false);
   const [note, setNote] = useState(followUpNote ?? '');
@@ -56,6 +60,16 @@ export function LeadFollowUpControl({
 
   const chip = followUpChip(followUpAt);
 
+  // Already on the calendar (or already a client) → no follow-up to nag about.
+  if (booked) {
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-[#9CA3AF]">Follow up</span>
+        <span className="text-xs text-[#9CA3AF]">— appointment booked, no follow-up needed</span>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-wrap items-center gap-2">
       <span className="text-[11px] font-semibold uppercase tracking-wider text-[#9CA3AF]">Follow up</span>
@@ -86,7 +100,9 @@ export function LeadFollowUpControl({
           </button>
         </>
       ) : (
-        <span className="text-xs text-[#9CA3AF]">— none set</span>
+        <span className="text-xs text-[#9CA3AF]">
+          — none set · pick a date to bump this lead back to the top of your queue then
+        </span>
       )}
     </div>
   );

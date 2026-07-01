@@ -29,19 +29,25 @@ import {
   getFifResetChip,
   isAppointmentOutcomeChipStatus,
 } from '../../../lib/appointment-outcome-chip';
+import { isLeadCreditEligible, getLeadCreditChip, LEAD_CREDIT_NOTE } from '../../../lib/lead-credit-chip';
+import { ageFromDob } from '../../../lib/household';
 import type { LeadScore } from '../../../lib/lead-assessment';
 import { LeadTempChip } from '../../../components/LeadTempChip';
 import { LeadTagChips } from '../../../components/LeadTagChips';
 import { LeadFilterBar } from '../../../components/LeadFilterBar';
+import { SmartLeadSearch } from '../../../components/SmartLeadSearch';
 import SavedLeadsBar from '../../../components/SavedLeadsBar';
 import { type LeadFilters, EMPTY_LEAD_FILTERS, hasActiveFilters, coerceLeadFilters } from '../../../lib/lead-filters';
 import { type SavedLeadSegment } from '../../../lib/lead-segment';
 import { resolveLeadTags } from '../../../lib/lead-tag';
 import { isFollowUpDue, followUpMillis, followUpChip } from '../../../lib/lead-follow-up';
+import { toPriorityInput, leadPriorityScore } from '../../../lib/lead-priority';
 import { isUsStateCode, US_STATE_NAMES } from '../../../lib/us-states';
 import { parseLeadFile } from '../../../lib/lead-csv-parse';
 import { captureEvent } from '../../../lib/posthog';
 import { ANALYTICS_EVENTS } from '../../../lib/analytics-events';
+import ChallengeScoreboard from '../../../components/ChallengeScoreboard';
+import { CHALLENGES_ENABLED } from '../../../lib/feature-flags';
 
 interface Lead {
   id: string;
@@ -57,12 +63,24 @@ interface Lead {
   email?: string;
   // Lead's age in years, populated by the PDF extractor on import. Sortable.
   ageYears?: number;
+  // Underwriting fields off the lead doc — surfaced here so the filter bar /
+  // natural-language search can narrow on them (age range, smoker, gender).
+  dateOfBirth?: string;
+  gender?: 'M' | 'F';
+  smokerStatus?: 'Y' | 'N';
   createdAt?: Timestamp | null;
   appDownloadedAt?: string | null;
   assessmentCompletedAt?: Timestamp | null;
+  // Stamped when the teed-up first-touch SMS is sent (drives "Intro sent").
+  introTextSentAt?: Timestamp | null;
   leadScore?: LeadScore | null;
   convertedToClientId?: string | null;
   monthlyMortgageAmount?: number;
+  // Mortgage LOAN amount (balance) + lender from the PDF extractor. balance
+  // drives the pre-connection priority score (bigger loan = bigger policy).
+  mortgageDetails?: { balance?: number; lender?: string };
+  // Co-borrower on the mortgage = a second insurable life (priority nudge).
+  coborrowerStatus?: 'Y' | 'N' | null;
   notes?: string;
   tagIds?: string[];
   notesEntries?: Array<{ text?: string }>;
@@ -222,6 +240,9 @@ function LeadsPageInner() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<LeadView>('all');
+  // Bumped after each logged dial so the Today's Challenge Scoreboard
+  // refetches its rings in near-real-time (see ChallengeScoreboard).
+  const [dialTick, setDialTick] = useState(0);
   // IA v2 (dark-launch): admins always; everyone else when
   // NEXT_PUBLIC_IA_V2=on. Folds Call queue into a "Call mode" button here
   // and (in the dashboard sidebar) promotes Calendar + regroups nav.
@@ -437,8 +458,9 @@ function LeadsPageInner() {
     const unsub = onSnapshot(q, (snap) => {
       const map = new Map<string, { scheduledAt: Date; tz?: string }>();
       for (const d of snap.docs) {
-        const data = d.data() as { leadId?: string; scheduledAt?: Timestamp; scheduledAtTimeZone?: string; status?: string };
+        const data = d.data() as { leadId?: string; scheduledAt?: Timestamp; scheduledAtTimeZone?: string; status?: string; kind?: string };
         if (!data.leadId || !data.scheduledAt) continue;
+        if (data.kind === 'callback') continue; // callbacks aren't appointments
         if (data.status && data.status !== 'scheduled') continue;
         // First hit wins because query is sorted ascending — that's the
         // *next* appointment for the lead.
@@ -962,8 +984,13 @@ function LeadsPageInner() {
     if (filters.tagIds.length) {
       result = result.filter((lead) => filters.tagIds.every((id) => (lead.tagIds ?? []).includes(id)));
     }
-    if (filters.state) {
-      result = result.filter((lead) => (lead.address?.state ?? '').toUpperCase() === filters.state);
+    if (filters.states.length) {
+      const want = new Set(filters.states.map((s) => s.toUpperCase()));
+      result = result.filter((lead) => want.has((lead.address?.state ?? '').toUpperCase()));
+    }
+    if (filters.city) {
+      const needle = filters.city.toLowerCase();
+      result = result.filter((lead) => (lead.address?.city ?? '').toLowerCase().includes(needle));
     }
     if (filters.dateFrom || filters.dateTo) {
       const fromMs = filters.dateFrom ? Date.parse(`${filters.dateFrom}T00:00:00`) : -Infinity;
@@ -973,8 +1000,71 @@ function LeadsPageInner() {
         return t != null && t >= fromMs && t <= toMs;
       });
     }
+    if (filters.temperatures.length) {
+      const want = new Set(filters.temperatures);
+      result = result.filter((lead) => {
+        const t = lead.leadScore?.temperature;
+        return !!t && want.has(t);
+      });
+    }
+    if (filters.dialOutcomes.length) {
+      const want = new Set<string>(filters.dialOutcomes);
+      result = result.filter((lead) => !!lead.lastDialOutcome && want.has(lead.lastDialOutcome));
+    }
+    if (filters.creditEligible) {
+      result = result.filter((lead) => isLeadCreditEligible(lead.ageYears, lead.dateOfBirth));
+    }
+    if (filters.ageMin != null || filters.ageMax != null) {
+      const lo = filters.ageMin ?? -Infinity;
+      const hi = filters.ageMax ?? Infinity;
+      result = result.filter((lead) => {
+        const age = lead.ageYears ?? ageFromDob(lead.dateOfBirth);
+        return typeof age === 'number' && age >= lo && age <= hi;
+      });
+    }
+    if (filters.appDownloaded) {
+      const want = filters.appDownloaded === 'yes';
+      result = result.filter((lead) => !!lead.appDownloadedAt === want);
+    }
+    if (filters.assessmentCompleted) {
+      const want = filters.assessmentCompleted === 'yes';
+      result = result.filter((lead) => !!lead.assessmentCompletedAt === want);
+    }
+    if (filters.introSent) {
+      const want = filters.introSent === 'yes';
+      result = result.filter((lead) => !!lead.introTextSentAt === want);
+    }
+    if (filters.smoker) {
+      result = result.filter((lead) => lead.smokerStatus === filters.smoker);
+    }
+    if (filters.gender) {
+      result = result.filter((lead) => lead.gender === filters.gender);
+    }
+    if (filters.hasMortgage) {
+      result = result.filter((lead) => (lead.monthlyMortgageAmount ?? 0) > 0);
+    }
+    if (filters.neverContacted) {
+      result = result.filter((lead) => !lead.lastDialAt);
+    }
+    if (filters.notContactedDays != null) {
+      const cutoff = Date.now() - filters.notContactedDays * 86400000;
+      result = result.filter((lead) => {
+        const t = lead.lastDialAt?.toDate().getTime();
+        return t == null || t < cutoff;
+      });
+    }
+    if (filters.contactedWithinDays != null) {
+      const cutoff = Date.now() - filters.contactedWithinDays * 86400000;
+      result = result.filter((lead) => {
+        const t = lead.lastDialAt?.toDate().getTime();
+        return t != null && t >= cutoff;
+      });
+    }
     if (filters.followUpDue) {
       result = result.filter((lead) => isFollowUpDue(lead.followUpAt));
+    }
+    if (filters.hasFollowUp) {
+      result = result.filter((lead) => followUpMillis(lead.followUpAt) != null);
     }
 
     // Multi-word AND: every whitespace-separated term must match SOME field
@@ -1113,6 +1203,9 @@ function LeadsPageInner() {
 
     type Scored = { lead: Lead; score: number };
     const scored: Scored[] = [];
+    // One 'now' for the whole pass so freshness scoring is consistent across
+    // leads (and stable within a single recompute).
+    const nowMs = Date.now();
 
     for (const lead of leads) {
       if (!inScope.has(lead.id)) continue;
@@ -1147,10 +1240,13 @@ function LeadsPageInner() {
       if (inPersistenceHold) {
         score = Number.MAX_SAFE_INTEGER;
       } else if (lastDialMs === null) {
-        // Never dialed — top of the rotation. Sub-sort by created-at so
-        // newer leads rank slightly higher (they're more "fresh").
+        // Never dialed — top of the rotation. Order by the pre-connection
+        // "promise" score (source / freshness / mortgage / age / co-borrower)
+        // so the most promising FRESH leads surface first instead of plain
+        // newest-first; created-at stays a fine tiebreak within equal scores.
+        const promise = leadPriorityScore(toPriorityInput(lead), nowMs);
         const createdMs = lead.createdAt?.toDate().getTime() ?? 0;
-        score = 1_000_000_000 + createdMs / 1000;
+        score = 1_000_000_000 + promise * 1_000_000 + createdMs / 1_000_000_000;
       } else {
         // Dialed leads: oldest-dialed first. No per-outcome cooldown —
         // the agent cycles through and comes back around naturally.
@@ -1401,6 +1497,7 @@ function LeadsPageInner() {
         outcome,
         source: 'queue_inline',
       });
+      setDialTick((t) => t + 1);
       // Live snapshot picks up the new lastDialAt/lastDialOutcome
       // and the queue useMemo re-sorts on the next render. Booked /
       // not-interested / wrong-number leads drop off the queue
@@ -1537,6 +1634,13 @@ function LeadsPageInner() {
       <div className="relative">
         {/* ── List surface ── */}
         <div className={SLIDE_TRANSITION} style={listSurfaceStyle}>
+          {/* Today's Challenge Scoreboard — the bold, standout gamification
+              surface + Power Hour dial timer, right where the dialing
+              happens. Shown on the list + Call mode (not Calendar). Gated
+              on NEXT_PUBLIC_CHALLENGES_ENABLED; self-hides until loaded. */}
+          {CHALLENGES_ENABLED && view !== 'calendar' && (
+            <ChallengeScoreboard refreshSignal={dialTick} />
+          )}
           {/* Pair-phone banner — only on the main list view so Call mode /
               Calendar stay focused. Self-gates on unpaired + text channel,
               and vanishes for good once the phone is paired. */}
@@ -1787,30 +1891,15 @@ function LeadsPageInner() {
                 because the queue's purpose is "who should I call next"
                 — searching by name there would defeat the priority sort. */}
             {view === 'all' && (
-              <div className="relative w-full max-w-xs mb-1.5">
-                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#707070]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                <input
-                  type="text"
-                  placeholder="Search leads…"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-8 py-1.5 bg-white rounded-[5px] border border-[#d0d0d0] text-sm text-[#000000] placeholder-[#707070] focus:outline-none focus:border-[#45bcaa]"
-                />
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full text-[#707070] hover:bg-gray-100 flex items-center justify-center"
-                    aria-label="Clear search"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                )}
-              </div>
+              <SmartLeadSearch
+                user={user}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                filters={filters}
+                setFilters={setFilters}
+                tags={agentProfile.leadTags ?? []}
+                availableStates={availableStates}
+              />
             )}
             {view === 'all' && (
               <div className="flex items-center gap-x-4 gap-y-2 flex-wrap">
@@ -2199,7 +2288,7 @@ function LeadsPageInner() {
             {view === 'queue' && !loading && queueLeads.length > 0 ? (
               <div>
                 <div className="px-5 py-3 bg-[#daf3f0]/30 border-b border-[#d0d0d0] text-xs text-[#005851] font-semibold">
-                  Top of the queue is who you should call next.
+                  Top of the queue is who to call next — your most promising fresh leads first.
                   Outcome-chip the call and the queue resorts automatically.
                 </div>
                 <ul className="divide-y divide-[#f1f1f1]">
@@ -2245,6 +2334,24 @@ function LeadsPageInner() {
                               {lead.leadScore && (
                                 <LeadTempChip temperature={lead.leadScore.temperature} />
                               )}
+                              {(() => {
+                                // Lead type — informational only, NOT a ranking
+                                // input (intent by source is the agent's call).
+                                const ft = lead.formType;
+                                if (!ft || ft === 'Manual' || ft === 'Unknown') return null;
+                                const cls =
+                                  ft === 'Call-In' ? 'bg-[#daf3f0] text-[#005851]'
+                                  : ft === 'Digital' ? 'bg-[#e6f1fb] text-[#185fa5]'
+                                  : 'bg-[#f1efe8] text-[#5f5e5a]';
+                                return (
+                                  <span
+                                    className={`inline-flex items-center shrink-0 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded ${cls}`}
+                                    title="Lead type — informational, not part of the ranking"
+                                  >
+                                    {ft}
+                                  </span>
+                                );
+                              })()}
                             </div>
                             <div className="text-xs text-[#707070] mt-0.5 flex items-center gap-2 flex-wrap">
                               <span>{lead.phone}</span>
@@ -2514,8 +2621,22 @@ function LeadsPageInner() {
                             {lead.leadScore && (
                               <LeadTempChip temperature={lead.leadScore.temperature} />
                             )}
+                            {isLeadCreditEligible(lead.ageYears) && (() => {
+                              const chip = getLeadCreditChip();
+                              return (
+                                <span
+                                  title={LEAD_CREDIT_NOTE}
+                                  className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded ${chip.classes}`}
+                                >
+                                  {chip.label}
+                                </span>
+                              );
+                            })()}
                             <LeadTagChips tagIds={lead.tagIds} tags={agentProfile.leadTags ?? []} />
                             {(() => {
+                              // Suppress the follow-up chip once the lead is booked
+                              // or converted — the next step isn't another outreach.
+                              if (nextApptByLead.has(lead.id) || lead.convertedToClientId) return null;
                               const fu = followUpChip(lead.followUpAt);
                               return fu ? (
                                 <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold tracking-wide rounded ${fu.classes}`}>{fu.label}</span>

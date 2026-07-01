@@ -66,6 +66,8 @@ interface CalAppt {
   scheduledAtTimeZone: string | null;
   durationMinutes: number;
   status: AppointmentStatus;
+  /** 'callback' = a lead-requested call-back; rendered apart, never a sit. */
+  kind?: 'appointment' | 'callback';
   meetingUrl: string | null;
   googleEventId: string | null;
 }
@@ -92,6 +94,20 @@ const STATUS_META: Record<AppointmentStatus, StatusMeta> = {
   no_show: { label: 'No-show', block: 'bg-[#FFE4E1] border-[#FF6B5C] text-[#A0382A]', dot: 'bg-[#FF6B5C]' },
   cancelled: { label: 'Cancelled', block: 'bg-gray-100 border-gray-300 text-gray-500 line-through', dot: 'bg-gray-400' },
 };
+
+// Callbacks are not appointments — they get their own muted slate look so the
+// week never reads them as a booked sit. Keyed off `kind`, not `status`.
+const CALLBACK_META: StatusMeta = {
+  label: 'Callback',
+  block: 'bg-[#EEF2F6] border-[#94A3B8] text-[#475569]',
+  dot: 'bg-[#94A3B8]',
+};
+
+/** Block styling for a calendar entry: callback look for callbacks, else the
+ *  status look. One place so the grid, agenda, and popover stay consistent. */
+function metaFor(a: { kind?: string; status: AppointmentStatus }): StatusMeta {
+  return a.kind === 'callback' ? CALLBACK_META : STATUS_META[a.status];
+}
 
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -253,6 +269,7 @@ function useWeekAppointments(user: User | null, weekStart: Date): CalAppt[] {
             scheduledAtTimeZone: typeof v.scheduledAtTimeZone === 'string' ? v.scheduledAtTimeZone : null,
             durationMinutes: typeof v.durationMinutes === 'number' ? v.durationMinutes : 30,
             status: (typeof v.status === 'string' ? v.status : 'scheduled') as AppointmentStatus,
+            kind: v.kind === 'callback' ? 'callback' : 'appointment',
             meetingUrl: typeof v.meetingUrl === 'string' ? v.meetingUrl : null,
             googleEventId: typeof v.googleEventId === 'string' ? v.googleEventId : null,
           });
@@ -558,7 +575,8 @@ export default function LeadsCalendar({ onGoToQueue }: { onGoToQueue?: () => voi
   // First sit vs follow-up per block. Keyed off displayAppts so an optimistic
   // reschedule re-classifies against the dragged time (and rolls back with it).
   const kindById = useMemo(
-    () => new Map<string, ApptKind>(displayAppts.map((a) => [a.id, classifyAppt(a, priorSitsByLead)])),
+    // Callbacks aren't sits — leave them out so they get no first/follow-up marker.
+    () => new Map<string, ApptKind>(displayAppts.filter((a) => a.kind !== 'callback').map((a) => [a.id, classifyAppt(a, priorSitsByLead)])),
     [displayAppts, priorSitsByLead],
   );
 
@@ -1330,15 +1348,17 @@ function DayColumn({
       {/* AFL sit blocks (interactive) */}
       {appts.map((a) => {
         const { top, height } = blockPosition(a.scheduledAt, a.durationMinutes);
-        const meta = STATUS_META[a.status];
+        const meta = metaFor(a);
+        const isCb = a.kind === 'callback';
         const showTheir =
           a.scheduledAtTimeZone && localTz && a.scheduledAtTimeZone !== localTz;
         const kind = kindById.get(a.id);
         return (
           <button
             key={a.id}
-            draggable
+            draggable={!isCb}
             onDragStart={(e) => {
+              if (isCb) return; // callbacks don't reschedule via drag
               e.dataTransfer.effectAllowed = 'move';
               try { e.dataTransfer.setData('text/plain', a.id); } catch { /* Firefox-only guard */ }
               setHover(null);
@@ -1358,12 +1378,12 @@ function DayColumn({
                     ? `Their time: ${fmtTime(a.scheduledAt, a.scheduledAtTimeZone)} ${tzAbbrev(a.scheduledAt, a.scheduledAtTimeZone)}`
                     : undefined,
                 kind,
-                hint: 'Drag to reschedule · click for options',
+                hint: isCb ? 'Callback · click for options' : 'Drag to reschedule · click for options',
               });
             }}
             onMouseLeave={() => setHover(null)}
             onClick={(e) => { e.stopPropagation(); onSelect(a); }}
-            className={`absolute left-0.5 right-0.5 rounded-md border-l-[3px] border px-1.5 py-1 text-left overflow-hidden hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing ${meta.block} ${draggingId === a.id ? 'opacity-40' : ''}`}
+            className={`absolute left-0.5 right-0.5 rounded-md border-l-[3px] border px-1.5 py-1 text-left overflow-hidden hover:shadow-md transition-shadow ${isCb ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'} ${meta.block} ${draggingId === a.id ? 'opacity-40' : ''}`}
             style={{ top, height, zIndex: 5 }}
             // Empty (but present) title suppresses the parent column's native
             // "Click an open spot to book" tooltip from bleeding through onto a
@@ -1377,6 +1397,15 @@ function DayColumn({
                 ? ` · ${fmtTime(a.scheduledAt, a.scheduledAtTimeZone)} ${tzAbbrev(a.scheduledAt, a.scheduledAtTimeZone)}`
                 : ''}
             </div>
+            {/* Callbacks get a phone glyph (no sit marker — they're not sits). */}
+            {isCb && (
+              <span
+                className="absolute top-0.5 right-0.5 inline-flex items-center justify-center h-3.5 px-1 rounded-[3px] text-[9px] font-bold leading-none bg-white/70 border border-[#cbd5e1] text-[#475569]"
+                aria-hidden
+              >
+                ☎
+              </span>
+            )}
             {/* First-sit vs follow-up marker (top-right corner). Follow-up =
                 ↻ tinted by the prior outcome (gold Thinking / blue No-sale /
                 green Sold); first sit = a faint "1st". */}
@@ -1500,7 +1529,7 @@ function AgendaWeek({
             ) : (
               <ul className="space-y-1.5">
                 {dayAppts.map((a) => {
-                  const meta = STATUS_META[a.status];
+                  const meta = metaFor(a);
                   const showTheir = a.scheduledAtTimeZone && localTz && a.scheduledAtTimeZone !== localTz;
                   const kind = kindById.get(a.id);
                   return (
@@ -1631,6 +1660,10 @@ function Legend({ viewMode }: { viewMode: 'focus' | 'normal' }) {
           <span className="text-[#707070]">{it.label}</span>
         </div>
       ))}
+      <div className="flex items-center gap-2">
+        <span className={`w-2.5 h-2.5 rounded-sm ${CALLBACK_META.dot}`} />
+        <span className="text-[#707070]">Callback</span>
+      </div>
       <div className="flex items-center gap-2 pt-1 border-t border-[#f0f0f0]">
         {viewMode === 'normal' ? (
           <span className="w-2.5 h-2.5 rounded-sm bg-[#EEF2FF] border border-[#c7d2fe]" />
@@ -1661,7 +1694,8 @@ function ApptPopover({
   onOpenLead: () => void;
   onRemind: () => void;
 }) {
-  const meta = STATUS_META[appt.status];
+  const meta = metaFor(appt);
+  const isCb = appt.kind === 'callback';
   const fifChip = fifReset ? getFifResetChip(fifReset.smeName) : null;
   const localTz = browserTz();
   const showTheir = appt.scheduledAtTimeZone && localTz && appt.scheduledAtTimeZone !== localTz;
@@ -1730,12 +1764,14 @@ function ApptPopover({
               Join
             </a>
           )}
-          <button
-            onClick={onRemind}
-            className="col-span-1 grid place-items-center py-2.5 text-sm font-semibold text-[#0D4D4D] bg-white hover:bg-[#f8f8f8] rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors"
-          >
-            Send reminder
-          </button>
+          {!isCb && (
+            <button
+              onClick={onRemind}
+              className="col-span-1 grid place-items-center py-2.5 text-sm font-semibold text-[#0D4D4D] bg-white hover:bg-[#f8f8f8] rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors"
+            >
+              Send reminder
+            </button>
+          )}
           <button
             onClick={onOpenLead}
             className="col-span-1 grid place-items-center py-2.5 text-sm font-semibold text-[#0D4D4D] bg-white hover:bg-[#f8f8f8] rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors"

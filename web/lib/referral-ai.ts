@@ -269,12 +269,112 @@ ${languageInstruction(ctx.preferredLanguage ?? 'en')}`,
 }
 
 /**
+ * Optional direct-booking capability handed to the referral AI. When present,
+ * the model can offer these real open times and call the executor to book one.
+ * Feature-flagged at the call site; absent → the AI behaves exactly as before
+ * (offers the scheduling link).
+ */
+export interface ReferralBookingCapability {
+  slots: Array<{ id: string; label: string; startIso: string }>;
+  /** Books the chosen slot; returns a human label for the confirmation text. */
+  execute: (slotId: string) => Promise<{ ok: boolean; whenLabel: string }>;
+}
+
+/**
+ * Booking-enabled response path: gives the model a `book_appointment` tool
+ * constrained to the provided slot ids, executes the pick, then returns the
+ * confirmation text. Kept separate so the standard path stays untouched.
+ */
+async function respondWithBooking(
+  anthropic: Anthropic,
+  baseSystem: string,
+  messages: Anthropic.MessageParam[],
+  booking: ReferralBookingCapability,
+): Promise<string | null> {
+  const slotList = booking.slots.map((s) => `- ${s.id}: ${s.label}`).join('\n');
+  const system = `${baseSystem}
+
+DIRECT BOOKING — you can book the appointment yourself (do NOT send a scheduling link):
+You have these real, open times on the calendar:
+${slotList}
+When ${'the referral'} is ready, offer TWO of these times in your text (use the human labels, never the ids). When they pick one — or clearly agree to a specific time — call the book_appointment tool with the matching slot_id. Only ever offer or book times from this list; never invent a time. After the tool confirms, reply warmly confirming the exact day and time in one short text.`;
+
+  const tools: Anthropic.Tool[] = [
+    {
+      name: 'book_appointment',
+      description:
+        'Book the referral onto one of the provided open calendar slots. Only call after the referral has agreed to that specific time, and only with a slot_id from the provided list.',
+      input_schema: {
+        type: 'object',
+        properties: { slot_id: { type: 'string', enum: booking.slots.map((s) => s.id) } },
+        required: ['slot_id'],
+      },
+    },
+  ];
+
+  const first = await withRetry(() =>
+    anthropic.messages.create({ model: PRIMARY_MODEL, max_tokens: 400, system, messages, tools }),
+  );
+
+  const toolUse = first.content.find(
+    (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use',
+  );
+
+  if (!toolUse) {
+    const textBlock = first.content.find((b): b is Anthropic.TextBlock => b.type === 'text');
+    const t = textBlock ? textBlock.text.trim() : '';
+    return t && t !== '[WAIT]' && t !== '[DONE]' ? t : null;
+  }
+
+  const slotId = typeof (toolUse.input as { slot_id?: unknown }).slot_id === 'string'
+    ? (toolUse.input as { slot_id: string }).slot_id
+    : '';
+  let result: { ok: boolean; whenLabel: string };
+  try {
+    result = await booking.execute(slotId);
+  } catch (err) {
+    console.error('[referral-booking] executor threw:', err);
+    result = { ok: false, whenLabel: '' };
+  }
+
+  const followup = await withRetry(() =>
+    anthropic.messages.create({
+      model: PRIMARY_MODEL,
+      max_tokens: 300,
+      system,
+      tools,
+      messages: [
+        ...messages,
+        { role: 'assistant', content: first.content },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: toolUse.id,
+              content: result.ok
+                ? `Booked for ${result.whenLabel}. Confirm this exact day and time warmly in one short text.`
+                : `Booking did not go through. Apologize briefly and offer to try another time.`,
+            },
+          ],
+        },
+      ],
+    }),
+  );
+
+  const fb = followup.content.find((b): b is Anthropic.TextBlock => b.type === 'text');
+  if (fb && fb.text.trim()) return fb.text.trim();
+  return result.ok && result.whenLabel ? `You're all set for ${result.whenLabel} — talk soon!` : null;
+}
+
+/**
  * Respond to an incoming message from the referral.
  * Returns null if the AI decides not to respond ([WAIT] / [DONE]).
  */
 export async function generateReferralResponse(
   ctx: ReferralContext,
   newMessage: string,
+  booking?: ReferralBookingCapability,
 ): Promise<string | null> {
   const anthropic = getAnthropic();
 
@@ -309,6 +409,12 @@ export async function generateReferralResponse(
   }
 
   messages.push({ role: 'user', content: newMessage });
+
+  // Direct-booking path (flag-gated at the call site): the model can offer real
+  // times and book one. Skips the critic loop — the tool constrains the output.
+  if (booking && booking.slots.length > 0) {
+    return respondWithBooking(anthropic, systemPrompt, messages, booking);
+  }
 
   const generateCandidate = async (criticFeedback?: string) => {
     const system = criticFeedback
