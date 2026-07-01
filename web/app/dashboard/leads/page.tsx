@@ -2806,8 +2806,15 @@ function LeadsPageInner() {
             agentBusinessCardBase64={agentProfile.businessCardBase64}
             licenses={agentProfile.licenses || {}}
             attachmentsSent={confirmingLead.lead.attachmentsSent}
-            onSent={() => { setConfirmingLead(null); revealPairCelebration(); }}
-            onCancel={() => { setConfirmingLead(null); revealPairCelebration(); }}
+            // Advance to the next queue lead once the confirmation drawer
+            // closes (sent OR skipped). Booking otherwise only advances via
+            // the "booked lead drops off queueLeads → fall back to top of
+            // queue" path, which silently fails when the lead is pinned in
+            // the URL — tapping Call pins it (handleQueueCall). advanceToNext
+            // QueueLead rewrites the selected lead directly, so it advances
+            // whether or not the lead was pinned.
+            onSent={() => { setConfirmingLead(null); revealPairCelebration(); advanceToNextQueueLead('booked'); }}
+            onCancel={() => { setConfirmingLead(null); revealPairCelebration(); advanceToNextQueueLead('booked'); }}
           />
         )}
 
