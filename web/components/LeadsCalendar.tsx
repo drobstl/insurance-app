@@ -859,7 +859,10 @@ export default function LeadsCalendar({ onGoToQueue }: { onGoToQueue?: () => voi
       </div>
 
       {/* ── Google Calendar: connect / disconnect + view toggle (5a / 5b) ── */}
-      <div className="mb-3 flex items-center justify-between gap-2 flex-wrap">
+      {/* min-h reserves the connected-pill + Focus/Normal toggle height so
+          the calendar grid doesn't jump down when the status finishes
+          loading (was "Checking Google Calendar…" → taller pill+toggle). */}
+      <div className="mb-3 min-h-[38px] flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2 min-w-0">
           {gcalStatus === null && gcalLoading ? (
             <span className="text-xs text-[#9CA3AF]">Checking Google Calendar…</span>
