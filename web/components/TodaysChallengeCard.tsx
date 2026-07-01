@@ -20,7 +20,25 @@ export default function TodaysChallengeCard() {
   const { progress } = useChallengeProgress(user);
   const count = useCountUp(progress?.daily.current ?? 0);
 
-  if (!progress) return null;
+  // Reserve the card's footprint while progress loads so the rail below
+  // (Refer & Earn / What's New) doesn't jump down when it arrives. Same
+  // outer frame + a 92px ring placeholder → identical height, zero shift.
+  if (!progress) {
+    return (
+      <div
+        className="h-full w-full rounded-2xl p-4 sm:p-5 flex items-center gap-4"
+        style={{ minHeight: 184, background: C.homeCardBg, border: `2px solid ${C.homeBorder}`, borderRightWidth: 5, borderBottomWidth: 5 }}
+        aria-hidden
+      >
+        <div className="rounded-full flex-none animate-pulse" style={{ width: 92, height: 92, background: C.ringTrackLight }} />
+        <div className="flex flex-col gap-2 min-w-0 flex-1">
+          <div className="rounded animate-pulse" style={{ height: 9, width: 96, background: C.ringTrackLight }} />
+          <div className="rounded animate-pulse" style={{ height: 14, width: '72%', background: C.ringTrackLight }} />
+          <div className="rounded animate-pulse" style={{ height: 10, width: '48%', background: C.ringTrackLight }} />
+        </div>
+      </div>
+    );
+  }
 
   const { daily, weekly, streak } = progress;
   const dailyPct = daily.target > 0 ? daily.current / daily.target : 0;
@@ -28,8 +46,8 @@ export default function TodaysChallengeCard() {
 
   return (
     <div
-      className="h-full w-full rounded-2xl p-4 sm:p-5 flex items-center gap-4"
-      style={{ background: C.homeCardBg, border: `2px solid ${C.homeBorder}`, borderRightWidth: 5, borderBottomWidth: 5 }}
+      className="tc-reveal-fade h-full w-full rounded-2xl p-4 sm:p-5 flex items-center gap-4"
+      style={{ minHeight: 184, background: C.homeCardBg, border: `2px solid ${C.homeBorder}`, borderRightWidth: 5, borderBottomWidth: 5 }}
     >
       <ChallengeRing
         size={92}
