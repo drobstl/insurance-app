@@ -41,10 +41,13 @@ import { type LeadFilters, EMPTY_LEAD_FILTERS, hasActiveFilters, coerceLeadFilte
 import { type SavedLeadSegment } from '../../../lib/lead-segment';
 import { resolveLeadTags } from '../../../lib/lead-tag';
 import { isFollowUpDue, followUpMillis, followUpChip } from '../../../lib/lead-follow-up';
+import { toPriorityInput, leadPriorityScore, leadPriorityReasons } from '../../../lib/lead-priority';
 import { isUsStateCode, US_STATE_NAMES } from '../../../lib/us-states';
 import { parseLeadFile } from '../../../lib/lead-csv-parse';
 import { captureEvent } from '../../../lib/posthog';
 import { ANALYTICS_EVENTS } from '../../../lib/analytics-events';
+import ChallengeScoreboard from '../../../components/ChallengeScoreboard';
+import { CHALLENGES_ENABLED } from '../../../lib/feature-flags';
 
 interface Lead {
   id: string;
@@ -73,6 +76,11 @@ interface Lead {
   leadScore?: LeadScore | null;
   convertedToClientId?: string | null;
   monthlyMortgageAmount?: number;
+  // Mortgage LOAN amount (balance) + lender from the PDF extractor. balance
+  // drives the pre-connection priority score (bigger loan = bigger policy).
+  mortgageDetails?: { balance?: number; lender?: string };
+  // Co-borrower on the mortgage = a second insurable life (priority nudge).
+  coborrowerStatus?: 'Y' | 'N' | null;
   notes?: string;
   tagIds?: string[];
   notesEntries?: Array<{ text?: string }>;
@@ -232,6 +240,9 @@ function LeadsPageInner() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<LeadView>('all');
+  // Bumped after each logged dial so the Today's Challenge Scoreboard
+  // refetches its rings in near-real-time (see ChallengeScoreboard).
+  const [dialTick, setDialTick] = useState(0);
   // IA v2 (dark-launch): admins always; everyone else when
   // NEXT_PUBLIC_IA_V2=on. Folds Call queue into a "Call mode" button here
   // and (in the dashboard sidebar) promotes Calendar + regroups nav.
@@ -1192,6 +1203,9 @@ function LeadsPageInner() {
 
     type Scored = { lead: Lead; score: number };
     const scored: Scored[] = [];
+    // One 'now' for the whole pass so freshness scoring is consistent across
+    // leads (and stable within a single recompute).
+    const nowMs = Date.now();
 
     for (const lead of leads) {
       if (!inScope.has(lead.id)) continue;
@@ -1226,10 +1240,13 @@ function LeadsPageInner() {
       if (inPersistenceHold) {
         score = Number.MAX_SAFE_INTEGER;
       } else if (lastDialMs === null) {
-        // Never dialed — top of the rotation. Sub-sort by created-at so
-        // newer leads rank slightly higher (they're more "fresh").
+        // Never dialed — top of the rotation. Order by the pre-connection
+        // "promise" score (source / freshness / mortgage / age / co-borrower)
+        // so the most promising FRESH leads surface first instead of plain
+        // newest-first; created-at stays a fine tiebreak within equal scores.
+        const promise = leadPriorityScore(toPriorityInput(lead), nowMs);
         const createdMs = lead.createdAt?.toDate().getTime() ?? 0;
-        score = 1_000_000_000 + createdMs / 1000;
+        score = 1_000_000_000 + promise * 1_000_000 + createdMs / 1_000_000_000;
       } else {
         // Dialed leads: oldest-dialed first. No per-outcome cooldown —
         // the agent cycles through and comes back around naturally.
@@ -1243,6 +1260,22 @@ function LeadsPageInner() {
       .sort((a, b) => b.score - a.score)
       .map(({ lead }) => lead);
   }, [leads, filteredLeads, agentProfile.dialPersistence, pastOutcomeByLead, nextApptByLead]);
+
+  // Pre-connection priority reasons for the never-dialed leads in the queue,
+  // so each fresh row can show WHY it's ranked where it is (e.g. "Called in ·
+  // Fresh · $480k"). Keyed by lead id; only fresh (never-dialed) leads get an
+  // entry — dialed leads show their dial history instead. Empty-reason leads
+  // are omitted so the row simply shows "Never dialed" with no extra noise.
+  const queueReasonsById = useMemo(() => {
+    const nowMs = Date.now();
+    const m = new Map<string, string[]>();
+    for (const lead of leads) {
+      if (lead.lastDialAt) continue;
+      const reasons = leadPriorityReasons(toPriorityInput(lead), nowMs);
+      if (reasons.length) m.set(lead.id, reasons);
+    }
+    return m;
+  }, [leads]);
 
   // True when an active search/filter/saved-list is scoping the dial queue to
   // a subset of the book (drives the "calling your filtered list" indicator).
@@ -1480,6 +1513,7 @@ function LeadsPageInner() {
         outcome,
         source: 'queue_inline',
       });
+      setDialTick((t) => t + 1);
       // Live snapshot picks up the new lastDialAt/lastDialOutcome
       // and the queue useMemo re-sorts on the next render. Booked /
       // not-interested / wrong-number leads drop off the queue
@@ -1616,6 +1650,13 @@ function LeadsPageInner() {
       <div className="relative">
         {/* ── List surface ── */}
         <div className={SLIDE_TRANSITION} style={listSurfaceStyle}>
+          {/* Today's Challenge Scoreboard — the bold, standout gamification
+              surface + Power Hour dial timer, right where the dialing
+              happens. Shown on the list + Call mode (not Calendar). Gated
+              on NEXT_PUBLIC_CHALLENGES_ENABLED; self-hides until loaded. */}
+          {CHALLENGES_ENABLED && view !== 'calendar' && (
+            <ChallengeScoreboard refreshSignal={dialTick} />
+          )}
           {/* Pair-phone banner — only on the main list view so Call mode /
               Calendar stay focused. Self-gates on unpaired + text channel,
               and vanishes for good once the phone is paired. */}
@@ -2309,6 +2350,24 @@ function LeadsPageInner() {
                               {lead.leadScore && (
                                 <LeadTempChip temperature={lead.leadScore.temperature} />
                               )}
+                              {(() => {
+                                // Lead type — informational only, NOT a ranking
+                                // input (intent by source is the agent's call).
+                                const ft = lead.formType;
+                                if (!ft || ft === 'Manual' || ft === 'Unknown') return null;
+                                const cls =
+                                  ft === 'Call-In' ? 'bg-[#daf3f0] text-[#005851]'
+                                  : ft === 'Digital' ? 'bg-[#e6f1fb] text-[#185fa5]'
+                                  : 'bg-[#f1efe8] text-[#5f5e5a]';
+                                return (
+                                  <span
+                                    className={`inline-flex items-center shrink-0 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded ${cls}`}
+                                    title="Lead type — informational, not part of the ranking"
+                                  >
+                                    {ft}
+                                  </span>
+                                );
+                              })()}
                             </div>
                             <div className="text-xs text-[#707070] mt-0.5 flex items-center gap-2 flex-wrap">
                               <span>{lead.phone}</span>
@@ -2331,6 +2390,16 @@ function LeadsPageInner() {
                                 <>
                                   <span>·</span>
                                   <span className="text-[#005851] font-semibold">Never dialed</span>
+                                  {(() => {
+                                    const reasons = queueReasonsById.get(lead.id);
+                                    if (!reasons || reasons.length === 0) return null;
+                                    return (
+                                      <>
+                                        <span>·</span>
+                                        <span className="text-[#92500D] font-semibold">{reasons.join(' · ')}</span>
+                                      </>
+                                    );
+                                  })()}
                                 </>
                               )}
                             </div>
@@ -2591,6 +2660,9 @@ function LeadsPageInner() {
                             })()}
                             <LeadTagChips tagIds={lead.tagIds} tags={agentProfile.leadTags ?? []} />
                             {(() => {
+                              // Suppress the follow-up chip once the lead is booked
+                              // or converted — the next step isn't another outreach.
+                              if (nextApptByLead.has(lead.id) || lead.convertedToClientId) return null;
                               const fu = followUpChip(lead.followUpAt);
                               return fu ? (
                                 <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold tracking-wide rounded ${fu.classes}`}>{fu.label}</span>

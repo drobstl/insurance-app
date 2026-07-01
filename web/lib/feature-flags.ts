@@ -96,3 +96,16 @@ export const ACTIVITY_ENABLED =
  */
 export const BOOKED_LEAD_APP_AVAILABLE =
   process.env.NEXT_PUBLIC_BOOKED_LEAD_APP_AVAILABLE === 'true';
+
+/**
+ * NEXT_PUBLIC_CHALLENGES_ENABLED — gates the "Today's Challenge"
+ * gamification surface: the compact card on the dashboard home (under
+ * the value hero) and the dual-ring Scoreboard + Power Hour dial timer
+ * at the top of the Leads list / Call mode. When off / unset, both
+ * surfaces self-hide and the /api/agent/challenges endpoint returns a
+ * 404 (defense in depth). Same flip-requires-redeploy mechanics as the
+ * other NEXT_PUBLIC_* flags — set it in Vercel Production before the
+ * build that should expose the feature.
+ */
+export const CHALLENGES_ENABLED =
+  process.env.NEXT_PUBLIC_CHALLENGES_ENABLED === 'true';

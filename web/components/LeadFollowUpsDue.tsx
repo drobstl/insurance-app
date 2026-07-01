@@ -23,6 +23,8 @@ interface DueLead {
   phone?: string;
   followUpAt?: Timestamp | null;
   followUpNote?: string;
+  /** Set once the lead becomes a client — they're no longer a "reach out" target. */
+  convertedToClientId?: string | null;
 }
 
 const SNOOZE_MS = 3 * 24 * 60 * 60 * 1000;
@@ -38,6 +40,7 @@ const SNOOZE_MS = 3 * 24 * 60 * 60 * 1000;
 export function LeadFollowUpsDue({ user, agentName }: { user: User | null; agentName: string }) {
   const router = useRouter();
   const [leads, setLeads] = useState<DueLead[]>([]);
+  const [bookedLeadIds, setBookedLeadIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!user) return;
@@ -54,7 +57,38 @@ export function LeadFollowUpsDue({ user, agentName }: { user: User | null; agent
     return () => unsub();
   }, [user]);
 
-  if (!user || leads.length === 0) return null;
+  // A lead with an upcoming appointment isn't a follow-up target — the next
+  // step is the appointment, not another outreach. Mirror the Leads page's
+  // upcoming-appointment read (status 'scheduled' or unset, future only) so
+  // the two surfaces agree on who's "booked".
+  useEffect(() => {
+    if (!user) return;
+    const q = query(
+      collection(db, 'agents', user.uid, 'appointments'),
+      where('scheduledAt', '>', Timestamp.now()),
+    );
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const ids = new Set<string>();
+        for (const d of snap.docs) {
+          const data = d.data() as { leadId?: string; status?: string };
+          if (!data.leadId) continue;
+          if (data.status && data.status !== 'scheduled') continue;
+          ids.add(data.leadId);
+        }
+        setBookedLeadIds(ids);
+      },
+      (err) => console.error('[follow-ups-due] appointments subscription failed', err),
+    );
+    return () => unsub();
+  }, [user]);
+
+  // Drop booked + converted leads: their followUpAt may still be on the doc,
+  // but the reason to reach out is gone.
+  const visible = leads.filter((l) => !l.convertedToClientId && !bookedLeadIds.has(l.id));
+
+  if (!user || visible.length === 0) return null;
 
   const leadRef = (leadId: string) => doc(db, 'agents', user.uid, 'leads', leadId);
   const markDone = (leadId: string) =>
@@ -78,11 +112,11 @@ export function LeadFollowUpsDue({ user, agentName }: { user: User | null; agent
       <h2 className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-[#92500D]">
         Follow-ups due
         <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full px-1 text-[10px] font-bold bg-[#F0B100] text-white">
-          {leads.length}
+          {visible.length}
         </span>
       </h2>
       <div className="space-y-2">
-        {leads.map((lead) => {
+        {visible.map((lead) => {
           const chip = followUpChip(lead.followUpAt);
           const sms = textHref(lead);
           return (
