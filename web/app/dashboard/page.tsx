@@ -349,27 +349,27 @@ export default function DashboardHomePage() {
       <PairPhoneBanner />
       <EarlyAdopterBanner />
       <ProEndingBanner />
-      <WhatsNewSpotlight />
 
-      {/* ── Today's Challenge (gamification) ───────────────────── */}
-      {/* Self-competition card: beat yesterday's dials + beat last week.
-          Compact card pinned at the top, above the value number — the
-          calmer twin of the leads Scoreboard. Gated on
-          NEXT_PUBLIC_CHALLENGES_ENABLED; self-hides until progress loads. */}
-      {CHALLENGES_ENABLED && <TodaysChallengeCard />}
+      {/* ── Top row: Today's Challenge · Refer & Earn · What's New ── */}
+      {/* Three equal-height cards across the top to organize the home
+          page (Daniel's call). Today's Challenge is gated on
+          NEXT_PUBLIC_CHALLENGES_ENABLED; Refer & Earn is always shown;
+          What's New self-hides once dismissed and expands on click.
+          Cards stack on mobile. */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 items-stretch">
+        {CHALLENGES_ENABLED && <TodaysChallengeCard />}
+        <ReferEarnPromoCard />
+        <WhatsNewSpotlight />
+      </div>
 
       {/* ── Value Hero ─────────────────────────────────────────── */}
-      {/* APV on the left; the compact Refer & Earn promo fills the empty
-          space on the right (stacks below the number on mobile). See
-          components/ReferEarnPromoCard.tsx. */}
-      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6 mt-2 mb-8 md:mb-10">
-        <div>
-          <p className="text-5xl md:text-8xl font-extrabold text-[#005851] tracking-tight">
-            {formatValue(totalValue)}
-          </p>
-          <p className="text-sm text-[#707070] mt-1">total value created</p>
-        </div>
-        <ReferEarnPromoCard />
+      {/* Refer & Earn moved up into the top row; the value number stands
+          on its own beneath it. */}
+      <div className="mb-8 md:mb-10">
+        <p className="text-5xl md:text-8xl font-extrabold text-[#005851] tracking-tight">
+          {formatValue(totalValue)}
+        </p>
+        <p className="text-sm text-[#707070] mt-1">total value created</p>
       </div>
 
       {/* ── Next training session card ─────────────────────────── */}

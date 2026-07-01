@@ -25,7 +25,7 @@ export default function TodaysChallengeCard() {
 
   return (
     <div
-      className="w-fit max-w-full rounded-2xl p-4 sm:p-5 mt-2 mb-6 flex items-center gap-4 sm:gap-5"
+      className="h-full w-full rounded-2xl p-4 sm:p-5 flex items-center gap-4 sm:gap-5"
       style={{ background: C.stage, border: `1px solid ${daily.won ? C.mint : C.border}` }}
     >
       <ChallengeRing
