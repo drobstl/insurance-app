@@ -242,6 +242,10 @@ interface AppointmentsLeadsTabProps {
   setSaveMessage: (m: SaveMessage) => void;
   /** Read-only — drives the "requires Google Calendar" hint on auto-Meet. */
   googleCalendarStatus: GoogleCalendarStatusResponse['data'] | null;
+  /** Connect-calendar handler + pending state, so the "Let the AI book it"
+      option can offer a one-click connect right on the card. */
+  googleCalendarConnecting?: boolean;
+  onConnectCalendar?: () => void;
   /** Which half of the old combined tab to render: appointment defaults,
       or the Pro-gated dialer + lead-home surfaces. */
   view: 'appointments' | 'leads';
@@ -256,6 +260,8 @@ export default function AppointmentsLeadsTab({
   setAgentProfile,
   setSaveMessage,
   googleCalendarStatus,
+  googleCalendarConnecting,
+  onConnectCalendar,
   view,
   clean,
 }: AppointmentsLeadsTabProps) {
@@ -460,22 +466,37 @@ export default function AppointmentsLeadsTab({
                   </div>
                   <p className="text-xs text-[#707070] mt-1">They tap your Calendly/Cal.com link and pick a time on your page.</p>
                 </button>
-                <button
-                  type="button"
-                  disabled={!connected}
-                  onClick={() => { if (connected) updateField('bookingMode', 'ai'); }}
-                  className={`${cardBase} ${mode === 'ai' ? 'border-[#005851] bg-[#f2fbf9] ring-1 ring-[#005851]' : connected ? 'border-gray-200 hover:border-gray-300' : 'border-gray-200 opacity-60 cursor-not-allowed'}`}
+                <div
+                  role={connected ? 'button' : undefined}
+                  onClick={connected ? () => updateField('bookingMode', 'ai') : undefined}
+                  className={`${cardBase} ${mode === 'ai' ? 'border-[#005851] bg-[#f2fbf9] ring-1 ring-[#005851]' : 'border-gray-200'} ${connected ? 'cursor-pointer hover:border-gray-300' : ''}`}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-sm font-semibold text-[#111827] flex items-center gap-1.5">
                       Let the AI book it
                       <span className="text-[9px] font-bold uppercase tracking-wide text-[#005851] bg-[#daf3f0] px-1.5 py-0.5 rounded">New</span>
                     </span>
-                    {mode === 'ai' && <CheckDot />}
+                    {mode === 'ai' && connected && <CheckDot />}
                   </div>
-                  <p className="text-xs text-[#707070] mt-1">The AI offers your open times and books it right on your Google Calendar — no link.</p>
-                  {!connected && <p className="text-[11px] text-[#8a5a00] mt-2">Connect Google Calendar (Account tab) to turn this on.</p>}
-                </button>
+                  <p className="text-xs text-[#707070] mt-1">The AI offers your open times and books it right on your Google Calendar — no link, no back-and-forth.</p>
+                  {!connected && (
+                    <div className="mt-2.5">
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onConnectCalendar?.(); }}
+                        disabled={googleCalendarConnecting}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[5px] bg-[#005851] text-white text-xs font-semibold hover:bg-[#004440] transition-colors disabled:opacity-50"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <rect x="4" y="5" width="16" height="15" rx="2" strokeWidth="2" />
+                          <path strokeLinecap="round" strokeWidth="2" d="M4 9h16M8 3v4M16 3v4" />
+                        </svg>
+                        {googleCalendarConnecting ? 'Connecting…' : 'Connect Google Calendar'}
+                      </button>
+                      <p className="text-[11px] text-[#707070] mt-1.5">Takes about 10 seconds — then the AI can book straight onto your calendar.</p>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {mode === 'link' ? (

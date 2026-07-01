@@ -797,6 +797,8 @@ export default function SettingsPage() {
             setAgentProfile={setAgentProfile}
             setSaveMessage={setSaveMessage}
             googleCalendarStatus={googleCalendarStatus}
+            googleCalendarConnecting={googleCalendarConnecting}
+            onConnectCalendar={handleGoogleCalendarConnect}
           />
         )}
         {tab === 'leads' && (
