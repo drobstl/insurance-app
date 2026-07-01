@@ -775,6 +775,11 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     if (pathname.startsWith('/dashboard/feedback')) return 'feedback';
     if (pathname.startsWith('/dashboard/settings')) return 'settings';
     if (pathname.startsWith('/dashboard/admin')) return 'admin';
+    // My Team (agency owners) renders its own nav button with its own
+    // active check; without this case the resolver falls through to the
+    // 'home' default and lights up Home too. Return a key no NAV_ITEM
+    // owns so nothing in the main list highlights on /dashboard/team.
+    if (pathname.startsWith('/dashboard/team')) return 'team';
     return 'home';
   })();
 
