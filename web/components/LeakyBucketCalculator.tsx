@@ -33,6 +33,10 @@ const AVG_POLICY_VALUE = 1200;
 const formatNumber = (num: number) =>
   num.toLocaleString('en-US', { maximumFractionDigits: 0 });
 
+/** Signed dollar delta: +$4,800 / -$4,800. */
+const formatDelta = (num: number) =>
+  `${num >= 0 ? '+' : '-'}$${formatNumber(Math.abs(num))}`;
+
 export default function LeakyBucketCalculator({
   initialBookSize = 250000,
   initialRetentionRate = 70,
@@ -49,6 +53,14 @@ export default function LeakyBucketCalculator({
   const [retentionRate, setRetentionRate] = useState(initialRetentionRate);
   const [referralRate, setReferralRate] = useState(initialReferralRate);
   const [rewriteRate, setRewriteRate] = useState(initialRewriteRate);
+  // The pinned "starting point" the delta readout compares against. Rates
+  // only — dollar figures are derived against the CURRENT book size so
+  // editing the book doesn't produce a nonsense delta.
+  const [baseline, setBaseline] = useState({
+    retention: initialRetentionRate,
+    referral: initialReferralRate,
+    rewrite: initialRewriteRate,
+  });
 
   const lostRevenue = bookSize * (1 - retentionRate / 100);
   const totalClients = Math.round(bookSize / AVG_POLICY_VALUE);
@@ -57,6 +69,23 @@ export default function LeakyBucketCalculator({
   const missedRewrites = Math.round(totalClients * ((35 - rewriteRate) / 100));
   const missedRewriteRevenue = missedRewrites * AVG_POLICY_VALUE;
   const totalBleed = lostRevenue + missedReferralRevenue + missedRewriteRevenue;
+
+  // Delta vs the pinned baseline, computed with the same formulas (and the
+  // same client-count rounding) as the bleed above, so the lever lines
+  // always sum to the total. Positive = recovered.
+  const baselineLostRevenue = bookSize * (1 - baseline.retention / 100);
+  const baselineMissedReferralRevenue =
+    Math.round(totalClients * ((25 - baseline.referral) / 100)) * AVG_POLICY_VALUE;
+  const baselineMissedRewriteRevenue =
+    Math.round(totalClients * ((35 - baseline.rewrite) / 100)) * AVG_POLICY_VALUE;
+  const retentionDelta = baselineLostRevenue - lostRevenue;
+  const referralDelta = baselineMissedReferralRevenue - missedReferralRevenue;
+  const rewriteDelta = baselineMissedRewriteRevenue - missedRewriteRevenue;
+  const totalDelta = retentionDelta + referralDelta + rewriteDelta;
+  const hasDelta =
+    retentionRate !== baseline.retention ||
+    referralRate !== baseline.referral ||
+    rewriteRate !== baseline.rewrite;
 
   const stableOnValuesChange = useCallback(
     (v: CalculatorValues) => onValuesChange?.(v),
@@ -253,6 +282,59 @@ export default function LeakyBucketCalculator({
                 <span className="font-semibold" style={{ color: palette.rewrite }}>-${formatNumber(missedRewriteRevenue)}</span>
               </div>
             </div>
+            {hasDelta && (
+              <div
+                className={`rounded-xl border-2 p-4 ${isH ? 'mt-4' : 'mt-6'}`}
+                style={{
+                  borderColor: totalDelta >= 0 ? palette.retention : palette.danger,
+                  backgroundColor: `${totalDelta >= 0 ? palette.retention : palette.danger}14`,
+                }}
+              >
+                <p className="text-center text-xs font-semibold uppercase tracking-wide" style={{ color: palette.muted }}>
+                  vs. your starting point
+                </p>
+                <p className="mt-1 text-center">
+                  <span className={`font-black ${isH ? 'text-2xl' : 'text-3xl'}`} style={{ color: totalDelta >= 0 ? palette.retention : palette.danger }}>
+                    {formatDelta(totalDelta)}
+                  </span>
+                  <span className="ml-1 text-sm font-semibold" style={{ color: palette.muted }}>/year</span>
+                </p>
+                <div className="mt-3 space-y-1.5 border-t pt-3 text-sm" style={{ borderColor: `${palette.heading}18` }}>
+                  {retentionRate !== baseline.retention && (
+                    <div className="flex items-center justify-between">
+                      <span style={{ color: palette.muted }}>Retention {baseline.retention}% → {retentionRate}%</span>
+                      <span className="font-semibold" style={{ color: retentionDelta >= 0 ? palette.retention : palette.danger }}>{formatDelta(retentionDelta)}</span>
+                    </div>
+                  )}
+                  {referralRate !== baseline.referral && (
+                    <div className="flex items-center justify-between">
+                      <span style={{ color: palette.muted }}>Referrals {baseline.referral}% → {referralRate}%</span>
+                      <span className="font-semibold" style={{ color: referralDelta >= 0 ? palette.retention : palette.danger }}>{formatDelta(referralDelta)}</span>
+                    </div>
+                  )}
+                  {rewriteRate !== baseline.rewrite && (
+                    <div className="flex items-center justify-between">
+                      <span style={{ color: palette.muted }}>Rewrites {baseline.rewrite}% → {rewriteRate}%</span>
+                      <span className="font-semibold" style={{ color: rewriteDelta >= 0 ? palette.retention : palette.danger }}>{formatDelta(rewriteDelta)}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            {hasDelta ? (
+              <button
+                type="button"
+                onClick={() => setBaseline({ retention: retentionRate, referral: referralRate, rewrite: rewriteRate })}
+                className="mx-auto mt-3 block text-xs font-semibold underline decoration-dotted underline-offset-4 transition-opacity hover:opacity-70"
+                style={{ color: palette.muted }}
+              >
+                Make this the new starting point
+              </button>
+            ) : (
+              <p className="mt-3 text-center text-xs" style={{ color: palette.muted }}>
+                Starting point set — move a slider to see the difference it makes.
+              </p>
+            )}
             <div className={`rounded-lg border p-3 ${isH ? 'mt-4' : 'mt-6 pt-4'}`} style={{ backgroundColor: '#F8F6EF', borderColor: `${palette.heading}26` }}>
               <p className="text-center text-sm" style={{ color: palette.heading }}><span className="font-bold" style={{ color: palette.retention }}>Agent For Life</span> helps you capture this revenue with <span className="font-bold">automated retention</span>, one-tap referrals, and anniversary rewrites.</p>
             </div>
