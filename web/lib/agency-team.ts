@@ -192,6 +192,9 @@ export interface TeamMemberRow {
   uid: string;
   name: string;
   dials: number;
+  /** Dial volume vs the prior equal-length window — lets the triage UI
+   *  tell "pipeline drying up" apart from "sits aren't closing". */
+  dialsDeltaPct: number | null;
   contactRate: number;
   booked: number;
   bookRate: number;
@@ -249,6 +252,7 @@ function rowFromStats(uid: string, name: string, stats: ActivityStats, coaching:
     uid,
     name,
     dials: stats.dials.total,
+    dialsDeltaPct: stats.dials.deltaPct,
     contactRate: stats.dials.contactRate,
     booked: stats.appointments.booked,
     bookRate: stats.appointments.bookRate,
