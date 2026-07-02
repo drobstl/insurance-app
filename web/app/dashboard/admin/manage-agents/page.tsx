@@ -24,6 +24,8 @@ export default function ManageAgentsPage() {
   const [search, setSearch] = useState('');
 
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [demoLoading, setDemoLoading] = useState<'seed' | 'purge' | null>(null);
+  const [demoResult, setDemoResult] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [actionResult, setActionResult] = useState<{ agentId: string; type: 'export' | 'delete' | 'founding' | 'agency' | 'upline'; message: string } | null>(null);
@@ -78,6 +80,33 @@ export default function ManageAgentsPage() {
     if (!isAdmin) { router.push('/dashboard'); return; }
     fetchAgents();
   }, [authLoading, user, isAdmin, router, fetchAgents]);
+
+  const runDemoDownline = async (action: 'seed' | 'purge') => {
+    if (!user) return;
+    setDemoLoading(action);
+    setDemoResult(null);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/admin/demo-downline', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `${action} failed`);
+      setDemoResult(
+        action === 'seed'
+          ? `Seeded ${data.agents} demo agents (${data.docs} docs) under your downline. Remember to purge after the demo.`
+          : data.agents === 0
+            ? 'No demo agents found under your downline — nothing to purge.'
+            : `Purged ${data.agents} demo agents: ${(data.names || []).join(', ')}.`,
+      );
+    } catch (e) {
+      setDemoResult(e instanceof Error ? e.message : `${action} failed`);
+    } finally {
+      setDemoLoading(null);
+    }
+  };
 
   const handleExport = async (agentId: string) => {
     if (!user || !agentId) return;
@@ -267,6 +296,34 @@ export default function ManageAgentsPage() {
         <p className="text-[#707070] text-sm mt-1">
           Export agent data or permanently delete accounts. Deletion removes all client data, policies, referrals, Stripe subscription, and Firebase Auth.
         </p>
+      </div>
+
+      <div className="mb-6 bg-white rounded-xl border border-[#d0d0d0] p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-bold text-[#0D4D4D]">Demo team (fake data)</p>
+            <p className="text-xs text-[#707070] mt-0.5">
+              Stage 6 fake agents with full activity under YOUR downline for a My Team walkthrough. Clearly marked, never contacted by crons. Purge right after the demo.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => runDemoDownline('seed')}
+              disabled={demoLoading !== null}
+              className="px-4 py-2 bg-[#44bbaa] hover:bg-[#005751] text-white text-sm font-semibold rounded-[5px] transition-colors disabled:opacity-50"
+            >
+              {demoLoading === 'seed' ? 'Seeding…' : 'Seed demo team'}
+            </button>
+            <button
+              onClick={() => runDemoDownline('purge')}
+              disabled={demoLoading !== null}
+              className="px-4 py-2 bg-white hover:bg-red-50 text-red-600 border border-red-300 text-sm font-semibold rounded-[5px] transition-colors disabled:opacity-50"
+            >
+              {demoLoading === 'purge' ? 'Purging…' : 'Purge demo team'}
+            </button>
+          </div>
+        </div>
+        {demoResult && <p className="mt-2 text-xs font-medium text-[#0D4D4D]">{demoResult}</p>}
       </div>
 
       {fetchLoading ? (
