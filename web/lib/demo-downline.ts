@@ -195,7 +195,9 @@ function buildPersonas(): Persona[] {
       ],
       referrals: [0, 2, 8],
       saves: [],
-      coaching: [[1, 7.8, 7.5, 8.2, 7.4, 7.9], [6, 7.2, 7.0, 7.8, 6.9, 7.1], [13, 6.8, 6.7, 7.4, 6.5, 6.6], [22, 6.4, 6.5, 7.0, 6.1, 6.2]],
+      // Scores trend up and every dimension clears the "dialed in" bar —
+      // a genuine hot streak, so the banner and her coaching read agree.
+      coaching: [[1, 8.0, 7.9, 8.3, 7.6, 8.1], [6, 7.7, 7.5, 8.0, 7.3, 7.8], [13, 7.4, 7.4, 7.7, 7.2, 7.4], [22, 7.1, 7.2, 7.5, 7.0, 7.1]],
       coachingPriority: {
         priority: 'Keep the discovery script tight',
         why: 'Recent calls show improving control — protect the structure that is working.',
@@ -249,6 +251,124 @@ function buildPersonas(): Persona[] {
         priority: 'Ask for the referral on every close',
         why: 'Her referral engine is the best on the team — make it a habit, not a hope.',
         action: 'Trigger the one-tap referral ask before ending every welcome call.',
+      },
+    },
+    {
+      // Veteran — fewer dials, bigger tickets, nothing to coach.
+      slug: 'tony-marino',
+      name: 'Tony Marino',
+      dialDays: [[0, 12, 3], [1, 14, 3], [2, 12, 3], [3, 13, 3], [6, 14, 3], [9, 12, 3], [13, 14, 3], [17, 12, 3], [21, 14, 3], [25, 12, 3], [28, 12, 3], [36, 14, 3], [44, 12, 3], [53, 12, 3]],
+      appts: [[0, 'completed'], [1, 'completed'], [2, 'completed'], [3, 'completed'], [6, 'completed'], [9, 'no_show'], [13, 'completed'], [17, 'completed'], [21, 'completed'], [25, 'sit_no_sale'], [0, 'scheduled']],
+      sales: [
+        sale(0, 165, 'manual_add', { issuePaidDaysAgo: 0 }),
+        sale(1, 240, 'rewrite'),
+        sale(2, 190, 'bought_lead', { issuePaidDaysAgo: 1 }),
+        sale(3, 155, 'referral', { issuePaidDaysAgo: 1 }),
+        sale(8, 210, 'rewrite', { issuePaidDaysAgo: 3 }),
+        sale(15, 175, 'manual_add', { issuePaidDaysAgo: 9 }),
+        sale(22, 195, 'bought_lead', { issuePaidDaysAgo: 15 }),
+        sale(40, 160, 'rewrite', { issuePaidDaysAgo: 33 }),
+        sale(50, 185, 'manual_add', { issuePaidDaysAgo: 42 }),
+      ],
+      referrals: [4, 16, 30, 47],
+      saves: [[3, 140, fakeClientName(105)]],
+      coaching: [[2, 8.3, 8.5, 8.1, 8.0, 8.4], [10, 8.1, 8.4, 7.9, 7.8, 8.2], [20, 8.2, 8.5, 8.0, 8.0, 8.3]],
+      coachingPriority: {
+        priority: 'Mentor the close on team calls',
+        why: 'His lock-it-down is the best on the team — leverage it beyond his own book.',
+        action: 'Have him walk one recorded close on the next team huddle.',
+      },
+    },
+    {
+      // Solid mid-pack #2 — emotion is the soft spot.
+      slug: 'grace-okafor',
+      name: 'Grace Okafor',
+      dialDays: [[0, 18, 4], [1, 20, 4], [3, 22, 4], [5, 18, 4], [9, 22, 4], [13, 20, 4], [17, 18, 4], [22, 20, 4], [26, 18, 4], [30, 18, 4], [38, 20, 4], [47, 18, 4], [56, 18, 4]],
+      appts: [[0, 'completed'], [1, 'no_show'], [3, 'completed'], [5, 'completed'], [9, 'cancelled'], [13, 'completed'], [17, 'sit_no_sale'], [22, 'completed'], [26, 'completed'], [1, 'scheduled']],
+      sales: [
+        sale(0, 105, 'bought_lead', { issuePaidDaysAgo: 0 }),
+        sale(3, 95, 'manual_add'),
+        sale(9, 112, 'bought_lead', { issuePaidDaysAgo: 4 }),
+        sale(17, 88, 'referral', { issuePaidDaysAgo: 11 }),
+        sale(26, 100, 'bought_lead', { issuePaidDaysAgo: 19 }),
+        sale(44, 94, 'bought_lead', { issuePaidDaysAgo: 37 }),
+      ],
+      referrals: [6, 19, 35],
+      saves: [],
+      coaching: [[3, 6.9, 7.3, 6.4, 7.0, 7.1], [11, 7.1, 7.5, 6.6, 7.2, 7.2], [21, 6.8, 7.2, 6.3, 6.9, 7.0]],
+      coachingPriority: {
+        priority: 'Sit in the problem longer',
+        why: 'Presentations start before the client has felt the stakes.',
+        action: 'Ask "what happens to them if this never gets fixed?" before every quote.',
+      },
+    },
+    {
+      // Three weeks in — swinging hard, raw on rapport. Riser, not triage.
+      slug: 'brandon-fisk',
+      name: 'Brandon Fisk',
+      dialDays: [[0, 35, 6], [1, 40, 6], [2, 38, 6], [3, 36, 6], [5, 40, 6], [7, 38, 6], [9, 36, 6], [12, 40, 6], [15, 35, 6], [18, 30, 6], [21, 28, 6]],
+      appts: [[0, 'completed'], [2, 'no_show'], [5, 'sit_no_sale'], [7, 'no_show'], [9, 'completed'], [12, 'sit_no_sale'], [15, 'no_show'], [0, 'scheduled'], [1, 'scheduled']],
+      sales: [
+        sale(1, 85, 'bought_lead', { issuePaidDaysAgo: 0 }),
+        sale(12, 70, 'bought_lead', { issuePaidDaysAgo: 6 }),
+      ],
+      referrals: [10],
+      saves: [],
+      coaching: [[2, 5.9, 5.4, 6.3, 6.0, 6.1], [7, 5.6, 5.2, 6.0, 5.7, 5.8], [14, 5.4, 5.1, 5.8, 5.5, 5.6]],
+      coachingPriority: {
+        priority: 'Slow down the first two minutes',
+        why: 'New-agent energy is reading as pressure — clients guard up early.',
+        action: 'Open with two personal questions before any insurance talk.',
+      },
+    },
+    {
+      // Steady book-builder — nothing dramatic, fills out the roster.
+      slug: 'kayla-nguyen',
+      name: 'Kayla Nguyen',
+      dialDays: [[0, 16, 4], [1, 18, 4], [2, 16, 4], [4, 20, 4], [8, 18, 4], [11, 16, 4], [15, 18, 4], [19, 16, 4], [24, 18, 4], [27, 16, 4], [34, 18, 4], [43, 16, 4], [52, 16, 4]],
+      appts: [[0, 'completed'], [2, 'completed'], [4, 'no_show'], [8, 'completed'], [11, 'completed'], [15, 'cancelled'], [19, 'completed'], [24, 'sit_no_sale'], [1, 'scheduled']],
+      sales: [
+        sale(1, 98, 'bought_lead', { issuePaidDaysAgo: 0 }),
+        sale(2, 102, 'referral'),
+        sale(7, 90, 'bought_lead', { issuePaidDaysAgo: 2 }),
+        sale(14, 86, 'manual_add', { issuePaidDaysAgo: 8 }),
+        sale(23, 108, 'bought_lead', { issuePaidDaysAgo: 16 }),
+        sale(38, 92, 'bought_lead', { issuePaidDaysAgo: 31 }),
+        sale(48, 96, 'referral', { issuePaidDaysAgo: 41 }),
+      ],
+      referrals: [3, 13, 29, 42],
+      saves: [[9, 92, fakeClientName(106)]],
+      coaching: [[4, 6.8, 7.1, 6.9, 6.4, 6.9], [12, 7.0, 7.3, 7.1, 6.6, 7.0], [23, 6.7, 7.0, 6.8, 6.3, 6.8]],
+      coachingPriority: {
+        priority: 'Assume the appointment',
+        why: 'Contacts go well but too many end without a booked time.',
+        action: 'Offer two time slots instead of asking "when works for you?"',
+      },
+    },
+    {
+      // Books plenty, half don't sit — the show-rate triage story.
+      slug: 'derek-stone',
+      name: 'Derek Stone',
+      dialDays: [[0, 10, 3], [1, 12, 3], [2, 11, 3], [3, 11, 3], [5, 12, 3], [8, 14, 3], [12, 12, 3], [16, 14, 3], [20, 12, 3], [25, 14, 3], [33, 12, 3], [45, 14, 3], [55, 12, 3]],
+      appts: [[0, 'no_show'], [0, 'no_show'], [0, 'no_show'], [0, 'completed'], [1, 'no_show'], [1, 'completed'], [2, 'no_show'], [2, 'completed'], [3, 'completed'], [5, 'completed'], [8, 'no_show'], [12, 'completed'], [16, 'no_show'], [20, 'completed']],
+      sales: [
+        // Prior-window sales sit on day 2 (not day 3): midnight-dated
+        // day-3 sales fall outside the month view's prior window for
+        // most of the day, which would erase his decline signal.
+        sale(1, 94, 'bought_lead', { issuePaidDaysAgo: 0 }),
+        sale(2, 88, 'bought_lead'),
+        sale(2, 96, 'manual_add', { issuePaidDaysAgo: 1 }),
+        sale(11, 90, 'bought_lead', { issuePaidDaysAgo: 5 }),
+        sale(21, 84, 'referral', { issuePaidDaysAgo: 14 }),
+        sale(41, 98, 'bought_lead', { issuePaidDaysAgo: 34 }),
+      ],
+      referrals: [8, 26],
+      saves: [],
+      coaching: [[3, 6.4, 6.9, 6.1, 6.6, 6.5], [13, 6.6, 7.1, 6.3, 6.8, 6.7], [24, 6.5, 7.0, 6.2, 6.7, 6.6]],
+      coachingPriority: {
+        priority: 'Confirm appointments the morning of',
+        why: 'Half his booked sits ghost — the calendar looks fuller than the day is.',
+        action: 'Text a confirm-with-a-question at 9am for every appointment that day.',
       },
     },
   ];

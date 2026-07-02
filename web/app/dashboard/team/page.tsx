@@ -31,6 +31,7 @@ interface MemberRow {
   uid: string;
   name: string;
   dials: number;
+  dialsDeltaPct: number | null;
   contactRate: number;
   booked: number;
   bookRate: number;
@@ -156,6 +157,30 @@ function FocusPill({ c }: { c: CoachingRadar }) {
   );
 }
 
+// One diagnostic line per declining agent: name the lever to pull, not
+// just the size of the drop. Checked most-specific-first so two agents
+// with the same sales delta still read differently when the CAUSE
+// differs (pipeline vs. close vs. show-rate vs. chargebacks).
+function triageInsight(m: MemberRow): string {
+  const salesLine = `Sales ${Math.abs(Math.round(m.deltaPct ?? 0))}% below the prior period`;
+  if (m.dialsDeltaPct !== null && m.dialsDeltaPct <= -40) {
+    return `Dials down ${Math.abs(Math.round(m.dialsDeltaPct))}% — the pipeline is drying up ahead of sales`;
+  }
+  if (m.dials < 15) {
+    return `Only ${m.dials} dials this period — the dial engine is off`;
+  }
+  if (m.dials >= 25 && m.showRate >= 0.5 && m.closeRate < 0.2) {
+    return `Activity is there (${m.dials} dials, ${pctInt(m.showRate)}% show) but only ${pctInt(m.closeRate)}% of sits close`;
+  }
+  if (m.booked >= 3 && m.showRate < 0.5) {
+    return `${m.booked} booked but only ${pctInt(m.showRate)}% sat — appointments aren't sticking`;
+  }
+  if (m.chargebacks > 0) {
+    return `${salesLine}, plus ${m.chargebacks} chargeback${m.chargebacks > 1 ? 's' : ''} eating what did close`;
+  }
+  return salesLine;
+}
+
 function TriageCard({ m, tone }: { m: MemberRow; tone: 'red' | 'amber' }) {
   const dot = tone === 'red' ? '#E24B4A' : '#EF9F27';
   const txt = tone === 'red' ? '#C0392B' : '#946207';
@@ -179,7 +204,7 @@ function TriageCard({ m, tone }: { m: MemberRow; tone: 'red' | 'amber' }) {
         <span className="text-[11px] text-[#9aa0a6]">Coaching radar building</span>
       )}
       <p className="mt-1.5 text-[11px] text-[#5f6b6a]">
-        Sales {Math.abs(Math.round(m.deltaPct ?? 0))}% below the prior period
+        {triageInsight(m)}
       </p>
     </div>
   );
@@ -544,17 +569,17 @@ export default function TeamPage() {
           </div>
 
           {standout && (
-            <div className={`mb-3 flex items-center gap-3 ${CARD} bg-[#EAF6F1] p-3`}>
-              <svg className="h-5 w-5 shrink-0 text-[#005851]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9a3 3 0 106 0M7 21h10M12 17v4M5 4h14v3a7 7 0 01-14 0V4z" />
-              </svg>
+            <div className={`mb-3 flex items-center gap-3 ${CARD} !bg-[#E7F6EF] p-3`}>
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#CDEEDF] text-base" aria-hidden>
+                😄
+              </span>
               <p className="text-[12.5px] text-[#0e4f45]">
                 <b className="font-semibold text-[#005851]">{standout.m.name}</b>{' '}
                 {standout.kind === 'riser' ? (
                   <>is on a tear — {standout.m.sales.count} sales, {money(standout.m.sales.apv)} APV,{' '}
-                    <span className="text-[#0F7A5A]">▲{Math.round(standout.m.deltaPct ?? 0)}%</span> vs the prior period. Give them a shout-out.</>
+                    <span className="font-semibold text-[#0F7A5A]">▲{Math.round(standout.m.deltaPct ?? 0)}%</span> vs the prior period. Give them a shout-out. 🎉</>
                 ) : (
-                  <>leads the team — {standout.m.sales.count} sales, {money(standout.m.sales.apv)} APV this period. Give them a shout-out.</>
+                  <>leads the team — {standout.m.sales.count} sales, {money(standout.m.sales.apv)} APV this period. Give them a shout-out. 🎉</>
                 )}
               </p>
             </div>
