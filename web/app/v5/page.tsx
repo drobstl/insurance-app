@@ -7,11 +7,12 @@ import LeakyBucketCalculator from '@/components/LeakyBucketCalculator';
 import { useTierCTA } from '@/hooks/useTierCTA';
 
 const FAQ_ITEMS = [
-  { question: 'What exactly is Agent for Life?', answer: 'A complete client relationship system for insurance agents. You get a branded mobile app for your clients, automated touchpoints (holidays, birthdays, anniversaries), one-tap referrals where AFL qualifies the lead via iMessage and books the appointment, retention alerts that rescue at-risk policies, and anniversary rewrite alerts.' },
+  { question: 'What exactly is Agent for Life?', answer: 'A complete client relationship system for insurance agents. You get a branded mobile app for your clients, automated touchpoints (holidays, birthdays, anniversaries), one-tap referrals where AFL qualifies the lead via iMessage and books the appointment, retention alerts that rescue at-risk policies, and anniversary rewrite alerts. That\'s the post-sale side. Pro adds a full pre-sale system on top — a lead pipeline and call queue, a pre-appointment warm-up page that scores each lead\'s intent before you ever dial, and AI call coaching.' },
   { question: 'How does AFL 3x my book?', answer: 'Every closed sale has three payouts available — the premium you wrote, the referrals that client could send, and the rewrite at the policy\'s anniversary. Most agents only collect the first. AFL automates the other two: one-tap referral buttons in every client\'s hand (AFL qualifies and books on your calendar), and anniversary outreach that turns every renewal into a booked review. Your book stops decaying and starts compounding.' },
   { question: 'How hard is it to get started?', answer: 'You can be live in 10 minutes. Import your clients via CSV or upload PDF applications — AFL extracts everything. Enable the referral assistant with one toggle and your clients get welcomed onto the app one by one.' },
   { question: 'Is my data safe?', answer: "Yes. Your client data is encrypted with AES-256, stored on Google Cloud, and only accessible by you. We never contact your clients independently, and no other agent can see your book of business." },
   { question: 'What carriers does it work with?', answer: 'All of them. Agent for Life is carrier-agnostic. Works for independent agents regardless of which carriers you\'re appointed with.' },
+  { question: 'I already have a dialer I\'m happy with — is AFL still for me?', answer: 'Yes — that\'s exactly what Growth is for. Keep your dialer and your lead flow, and AFL takes over the moment a sale closes: the branded client app, retention alerts, one-tap referrals, and anniversary rewrites. If you ever want to run the front end through AFL too, Pro adds the lead pipeline, the pre-appointment warm-up page, and unlimited AI call coaching — but you never have to switch.' },
   { question: 'How does pricing work?', answer: 'Growth at $49/mo (75 conversations) runs your post-sale book — retention, anniversaries, referrals, bulk import. Pro at $99/mo (200 conversations) adds the pre-sale tools on top: Leads, Activity, and the close-the-sale conveyor, plus unlimited AI call coaching that scores your call transcripts (Growth includes a few scored calls a month). Agency starts at $349/mo with band pricing for teams. Push notifications, agent-phone one-tap texts, and email are unlimited on every tier; the conversation budget is for the AFL-driven conversation line. 14-day free trial on Growth.' },
 ];
 
@@ -713,6 +714,77 @@ export default function DesktopLandingV5() {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ═══ TWO WAYS TO RUN AFL ═══ */}
+      <section id="two-ways" className="relative px-6 lg:px-8 py-24 lg:py-28 overflow-hidden" style={{ background: 'radial-gradient(ellipse 500px 400px at 12% 0%, rgba(61,214,195,0.12), transparent 70%), radial-gradient(ellipse 420px 420px at 92% 100%, rgba(253,204,2,0.07), transparent 70%), #0D4D4D' }}>
+        <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'linear-gradient(#3DD6C3 1px, transparent 1px), linear-gradient(90deg, #3DD6C3 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
+        <div className="relative max-w-6xl mx-auto">
+          <motion.div initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }} className="text-center mb-14">
+            <p className="text-[#3DD6C3] font-bold text-xs uppercase tracking-[0.25em] mb-5">Two ways to run AFL</p>
+            <h2 className="text-3xl lg:text-5xl font-extrabold text-white leading-tight mb-4">
+              Bring your whole pipeline. <span className="text-[#3DD6C3]">Or just your book.</span>
+            </h2>
+            <p className="text-white/60 text-lg max-w-2xl mx-auto">
+              AFL runs pre-sale and post-sale. Run everything from first dial to lifetime client — or keep the dialer you love and let AFL take over after the close.
+            </p>
+          </motion.div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            {/* Pro lane — full pipeline */}
+            <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5 }} className="rounded-2xl p-8 bg-white/[0.04] border border-[#fdcc02]/25 flex flex-col">
+              <span className="self-start px-3 py-1 bg-[#fdcc02]/15 text-[#fdcc02] text-[10px] font-bold rounded-full uppercase tracking-wide mb-5">Pre-sale + post-sale · Pro</span>
+              <h3 className="text-white text-2xl font-extrabold mb-3">Run the whole pipeline on AFL.</h3>
+              <p className="text-white/50 text-[15px] leading-relaxed mb-6">From the first dial to the lifetime client — with pre-sale tools nobody else has.</p>
+              <ul className="space-y-4">
+                {[
+                  { title: 'A warm-up page in every lead’s hands before the appointment — first of its kind.', desc: 'Your video does the introducing, their questions get answered, and a short assessment scores their urgency, need, and intent. You dial in already knowing who’s ready to close.' },
+                  { title: 'A lead pipeline built for phone agents.', desc: 'Call queue with outcomes, callbacks that land on your calendar, and dialing from your computer through your own number.' },
+                  { title: 'Unlimited AI call coaching.', desc: 'Every transcript scored on rapport, discovery, articulation, and listening — with the exact skill to sharpen next.' },
+                  { title: 'Appointment intel that knows your numbers cold.', desc: 'Dials, contacts, booked, show rate, close rate — and how each one moved since last period.' },
+                ].map((item) => (
+                  <li key={item.title} className="flex gap-3">
+                    <svg className="w-5 h-5 text-[#fdcc02] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                    <p className="text-[14px] leading-relaxed"><span className="text-white font-semibold">{item.title}</span> <span className="text-white/50">{item.desc}</span></p>
+                  </li>
+                ))}
+              </ul>
+            </motion.div>
+
+            {/* Growth lane — post-sale only */}
+            <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5, delay: 0.1 }} className="rounded-2xl p-8 bg-white/[0.04] border border-[#3DD6C3]/25 flex flex-col">
+              <span className="self-start px-3 py-1 bg-[#3DD6C3]/15 text-[#3DD6C3] text-[10px] font-bold rounded-full uppercase tracking-wide mb-5">Post-sale · Growth</span>
+              <h3 className="text-white text-2xl font-extrabold mb-3">Keep the dialer you love. Add the engine.</h3>
+              <p className="text-white/50 text-[15px] leading-relaxed mb-6">Already have a front end that works? Don&apos;t touch it. AFL takes over the moment the sale closes:</p>
+              <ul className="space-y-4">
+                {[
+                  { title: 'Your branded app on every client’s phone.', desc: 'Your name, your photo, your number — not the carrier’s.' },
+                  { title: 'Retention alerts that rescue at-risk policies.', desc: 'AFL reaches out the moment a policy slips — before the chargeback.' },
+                  { title: 'One-tap referrals, qualified and booked for you.', desc: 'AFL texts the referral, qualifies them, and books your calendar.' },
+                  { title: 'Anniversary rewrites that come to you.', desc: 'Every policy anniversary becomes a booked review instead of a carrier auto-renewal.' },
+                ].map((item) => (
+                  <li key={item.title} className="flex gap-3">
+                    <svg className="w-5 h-5 text-[#3DD6C3] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                    <p className="text-[14px] leading-relaxed"><span className="text-white font-semibold">{item.title}</span> <span className="text-white/50">{item.desc}</span></p>
+                  </li>
+                ))}
+              </ul>
+            </motion.div>
+          </div>
+
+          {/* Agency strip */}
+          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5, delay: 0.15 }} className="rounded-2xl p-8 bg-white/[0.04] border border-white/10">
+            <span className="inline-block px-3 py-1 bg-white/[0.08] text-white/70 text-[10px] font-bold rounded-full uppercase tracking-wide mb-4">Running a team? · Agency</span>
+            <h3 className="text-white text-xl lg:text-2xl font-extrabold mb-3">Your whole agency&apos;s numbers on one screen.</h3>
+            <p className="text-white/50 text-[15px] leading-relaxed max-w-3xl">
+              The agency&apos;s numbers, every agent&apos;s numbers, a live leaderboard — and a coaching-focus column that names each agent&apos;s weakest skill from their scored calls. The intel sits at your fingertips instead of hiding in a one-on-one that never happens.
+            </p>
+          </motion.div>
+
+          <motion.p initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} transition={{ duration: 0.5, delay: 0.2 }} className="text-center text-white/50 text-sm mt-10">
+            Both lanes, one system. Start on either — switch anytime.
+          </motion.p>
         </div>
       </section>
 
