@@ -718,7 +718,7 @@ export default function DesktopLandingV5() {
       </section>
 
       {/* ═══ TWO WAYS TO RUN AFL ═══ */}
-      <section className="relative px-6 lg:px-8 py-24 lg:py-28 overflow-hidden" style={{ background: 'radial-gradient(ellipse 500px 400px at 12% 0%, rgba(61,214,195,0.12), transparent 70%), radial-gradient(ellipse 420px 420px at 92% 100%, rgba(253,204,2,0.07), transparent 70%), #0D4D4D' }}>
+      <section id="two-ways" className="relative px-6 lg:px-8 py-24 lg:py-28 overflow-hidden" style={{ background: 'radial-gradient(ellipse 500px 400px at 12% 0%, rgba(61,214,195,0.12), transparent 70%), radial-gradient(ellipse 420px 420px at 92% 100%, rgba(253,204,2,0.07), transparent 70%), #0D4D4D' }}>
         <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'linear-gradient(#3DD6C3 1px, transparent 1px), linear-gradient(90deg, #3DD6C3 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
         <div className="relative max-w-6xl mx-auto">
           <motion.div initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }} className="text-center mb-14">
