@@ -53,14 +53,18 @@ export default function LeakyBucketCalculator({
   const [retentionRate, setRetentionRate] = useState(initialRetentionRate);
   const [referralRate, setReferralRate] = useState(initialReferralRate);
   const [rewriteRate, setRewriteRate] = useState(initialRewriteRate);
-  // The pinned "starting point" the delta readout compares against. Rates
-  // only — dollar figures are derived against the CURRENT book size so
-  // editing the book doesn't produce a nonsense delta.
-  const [baseline, setBaseline] = useState({
-    retention: initialRetentionRate,
-    referral: initialReferralRate,
-    rewrite: initialRewriteRate,
-  });
+  // The locked-in "current rates" the improvement readout compares
+  // against. Starts UNSET: the user first sets the sliders to where they
+  // are today, locks them in, and only then does moving a lever show the
+  // dollar improvement — so dialing in a low starting reality never
+  // flashes a confusing negative delta. Rates only — dollar figures are
+  // derived against the CURRENT book size so editing the book doesn't
+  // produce a stale delta.
+  const [baseline, setBaseline] = useState<{
+    retention: number;
+    referral: number;
+    rewrite: number;
+  } | null>(null);
 
   const lostRevenue = bookSize * (1 - retentionRate / 100);
   const totalClients = Math.round(bookSize / AVG_POLICY_VALUE);
@@ -70,22 +74,26 @@ export default function LeakyBucketCalculator({
   const missedRewriteRevenue = missedRewrites * AVG_POLICY_VALUE;
   const totalBleed = lostRevenue + missedReferralRevenue + missedRewriteRevenue;
 
-  // Delta vs the pinned baseline, computed with the same formulas (and the
-  // same client-count rounding) as the bleed above, so the lever lines
-  // always sum to the total. Positive = recovered.
-  const baselineLostRevenue = bookSize * (1 - baseline.retention / 100);
-  const baselineMissedReferralRevenue =
-    Math.round(totalClients * ((25 - baseline.referral) / 100)) * AVG_POLICY_VALUE;
-  const baselineMissedRewriteRevenue =
-    Math.round(totalClients * ((35 - baseline.rewrite) / 100)) * AVG_POLICY_VALUE;
+  // Improvement vs the locked-in current rates, computed with the same
+  // formulas (and the same client-count rounding) as the bleed above, so
+  // the lever lines always sum to the total. Positive = money added to
+  // the bottom line.
+  const baselineLostRevenue = baseline ? bookSize * (1 - baseline.retention / 100) : 0;
+  const baselineMissedReferralRevenue = baseline
+    ? Math.round(totalClients * ((25 - baseline.referral) / 100)) * AVG_POLICY_VALUE
+    : 0;
+  const baselineMissedRewriteRevenue = baseline
+    ? Math.round(totalClients * ((35 - baseline.rewrite) / 100)) * AVG_POLICY_VALUE
+    : 0;
   const retentionDelta = baselineLostRevenue - lostRevenue;
   const referralDelta = baselineMissedReferralRevenue - missedReferralRevenue;
   const rewriteDelta = baselineMissedRewriteRevenue - missedRewriteRevenue;
   const totalDelta = retentionDelta + referralDelta + rewriteDelta;
   const hasDelta =
-    retentionRate !== baseline.retention ||
-    referralRate !== baseline.referral ||
-    rewriteRate !== baseline.rewrite;
+    baseline !== null &&
+    (retentionRate !== baseline.retention ||
+      referralRate !== baseline.referral ||
+      rewriteRate !== baseline.rewrite);
 
   const stableOnValuesChange = useCallback(
     (v: CalculatorValues) => onValuesChange?.(v),
@@ -127,6 +135,7 @@ export default function LeakyBucketCalculator({
         inputFocusBorder: '#1A1A1A',
         inputFocusRing: 'rgba(240,215,255,0.4)',
         sliderInactive: '#E7E1D4',
+        positive: '#0F5F56',
         retention: '#0F5F56',
         referral: '#B077E8',
         rewrite: '#1A1A1A',
@@ -151,6 +160,7 @@ export default function LeakyBucketCalculator({
         inputFocusBorder: '#3DD6C3',
         inputFocusRing: 'rgba(61,214,195,0.2)',
         sliderInactive: '#E5E7EB',
+        positive: '#16A34A',
         retention: '#3DD6C3',
         referral: '#fdcc02',
         rewrite: '#0D4D4D',
@@ -282,57 +292,74 @@ export default function LeakyBucketCalculator({
                 <span className="font-semibold" style={{ color: palette.rewrite }}>-${formatNumber(missedRewriteRevenue)}</span>
               </div>
             </div>
-            {hasDelta && (
+            {baseline === null ? (
+              <div className={`rounded-xl border-2 border-dashed p-4 text-center ${isH ? 'mt-4' : 'mt-6'}`} style={{ borderColor: `${palette.heading}33`, backgroundColor: '#FFFFFF' }}>
+                <p className="text-sm font-semibold" style={{ color: palette.heading }}>
+                  Set the sliders to where you are <span className="underline">today</span>, then:
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setBaseline({ retention: retentionRate, referral: referralRate, rewrite: rewriteRate })}
+                  className="mt-2 rounded-lg px-5 py-2.5 text-sm font-bold text-white transition-transform hover:scale-[1.03] active:scale-[0.97]"
+                  style={{ backgroundColor: palette.positive }}
+                >
+                  Lock in my current rates
+                </button>
+                <p className="mt-2 text-xs" style={{ color: palette.muted }}>
+                  Then raise any slider to see what improving it adds to your bottom line.
+                </p>
+              </div>
+            ) : hasDelta ? (
               <div
                 className={`rounded-xl border-2 p-4 ${isH ? 'mt-4' : 'mt-6'}`}
                 style={{
-                  borderColor: totalDelta >= 0 ? palette.retention : palette.danger,
-                  backgroundColor: `${totalDelta >= 0 ? palette.retention : palette.danger}14`,
+                  borderColor: totalDelta >= 0 ? palette.positive : palette.danger,
+                  backgroundColor: '#FFFFFF',
                 }}
               >
                 <p className="text-center text-xs font-semibold uppercase tracking-wide" style={{ color: palette.muted }}>
-                  vs. your starting point
+                  {totalDelta >= 0 ? 'Improving these rates adds' : 'Slipping to these rates costs'}
                 </p>
                 <p className="mt-1 text-center">
-                  <span className={`font-black ${isH ? 'text-2xl' : 'text-3xl'}`} style={{ color: totalDelta >= 0 ? palette.retention : palette.danger }}>
+                  <span className={`font-black ${isH ? 'text-3xl' : 'text-4xl'}`} style={{ color: totalDelta >= 0 ? palette.positive : palette.danger }}>
                     {formatDelta(totalDelta)}
                   </span>
-                  <span className="ml-1 text-sm font-semibold" style={{ color: palette.muted }}>/year</span>
+                </p>
+                <p className="text-center text-sm font-semibold" style={{ color: totalDelta >= 0 ? palette.positive : palette.danger }}>
+                  /year to your bottom line
                 </p>
                 <div className="mt-3 space-y-1.5 border-t pt-3 text-sm" style={{ borderColor: `${palette.heading}18` }}>
                   {retentionRate !== baseline.retention && (
                     <div className="flex items-center justify-between">
                       <span style={{ color: palette.muted }}>Retention {baseline.retention}% → {retentionRate}%</span>
-                      <span className="font-semibold" style={{ color: retentionDelta >= 0 ? palette.retention : palette.danger }}>{formatDelta(retentionDelta)}</span>
+                      <span className="font-bold" style={{ color: retentionDelta >= 0 ? palette.positive : palette.danger }}>{formatDelta(retentionDelta)}</span>
                     </div>
                   )}
                   {referralRate !== baseline.referral && (
                     <div className="flex items-center justify-between">
                       <span style={{ color: palette.muted }}>Referrals {baseline.referral}% → {referralRate}%</span>
-                      <span className="font-semibold" style={{ color: referralDelta >= 0 ? palette.retention : palette.danger }}>{formatDelta(referralDelta)}</span>
+                      <span className="font-bold" style={{ color: referralDelta >= 0 ? palette.positive : palette.danger }}>{formatDelta(referralDelta)}</span>
                     </div>
                   )}
                   {rewriteRate !== baseline.rewrite && (
                     <div className="flex items-center justify-between">
                       <span style={{ color: palette.muted }}>Rewrites {baseline.rewrite}% → {rewriteRate}%</span>
-                      <span className="font-semibold" style={{ color: rewriteDelta >= 0 ? palette.retention : palette.danger }}>{formatDelta(rewriteDelta)}</span>
+                      <span className="font-bold" style={{ color: rewriteDelta >= 0 ? palette.positive : palette.danger }}>{formatDelta(rewriteDelta)}</span>
                     </div>
                   )}
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setBaseline({ retention: retentionRate, referral: referralRate, rewrite: rewriteRate })}
+                  className="mx-auto mt-3 block text-xs font-semibold underline decoration-dotted underline-offset-4 transition-opacity hover:opacity-70"
+                  style={{ color: palette.muted }}
+                >
+                  Update my current rates
+                </button>
               </div>
-            )}
-            {hasDelta ? (
-              <button
-                type="button"
-                onClick={() => setBaseline({ retention: retentionRate, referral: referralRate, rewrite: rewriteRate })}
-                className="mx-auto mt-3 block text-xs font-semibold underline decoration-dotted underline-offset-4 transition-opacity hover:opacity-70"
-                style={{ color: palette.muted }}
-              >
-                Make this the new starting point
-              </button>
             ) : (
-              <p className="mt-3 text-center text-xs" style={{ color: palette.muted }}>
-                Starting point set — move a slider to see the difference it makes.
+              <p className={`text-center text-xs font-medium ${isH ? 'mt-4' : 'mt-6'}`} style={{ color: palette.muted }}>
+                Current rates locked in ✓ — now raise a slider to see what improving it is worth.
               </p>
             )}
             <div className={`rounded-lg border p-3 ${isH ? 'mt-4' : 'mt-6 pt-4'}`} style={{ backgroundColor: '#F8F6EF', borderColor: `${palette.heading}26` }}>
